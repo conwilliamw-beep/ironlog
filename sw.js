@@ -1,5 +1,5 @@
 /* Ironlog service worker — network-first so updates land, cache fallback so the gym works offline. */
-const CACHE = "ironlog-shell-v16";
+const CACHE = "ironlog-shell-v17";
 const SHELL = ["./", "./index.html", "./manifest.webmanifest", "./icon-192.png", "./icon-512.png"];
 
 self.addEventListener("install", e => {

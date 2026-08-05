@@ -731,7 +731,9 @@ function repeatWorkout(id){
 }
 
 /* --- PROGRESS --- */
-let progEx=null, progTab="lifts", progWin=28;
+let progEx=null, progTab="lifts", progWin=28, liftWin=365, bodyWin=365;
+function setLiftWin(d){liftWin=d;render();}
+function setBodyWin(d){bodyWin=d;render();}
 function muscleLoad(days){
   const cut=new Date(); cut.setDate(cut.getDate()-days);
   const iso=cut.toISOString().slice(0,10);
@@ -780,7 +782,7 @@ function vProgress(){
   S.workouts.slice().sort((a,b)=>a.date.localeCompare(b.date)).forEach(w=>{
     const en=w.entries.find(x=>x.exerciseId===progEx);if(!en)return;
     let top=0;en.sets.filter(s=>s.type!=="warmup").forEach(s=>{const o=e1rm(+s.weight||0,+s.reps||0);if(o>top)top=o;});
-    if(top>0)pts.push({d:w.date,v:top});
+    if(top>0&&inRange(w.date,liftWin))pts.push({d:w.date,v:top});
   });
   return head+`
   <div class="tabs">${logged.map(id=>`<button class="${id===progEx?"on":""}" onclick="progEx='${id}';render()">${esc(ex(id).name)}</button>`).join("")}</div>
@@ -788,25 +790,46 @@ function vProgress(){
     <div class="stat"><div class="k">Best set</div><div class="v" style="font-size:17px">${best.weight?disp(best.weight,e)+e.unit:"—"}</div></div>
     <div class="stat"><div class="k">Est. 1RM</div><div class="v" style="font-size:17px">${best.e1rm?Math.round(disp(best.e1rm,e))+e.unit:"—"}</div></div>
     <div class="stat"><div class="k">Sessions</div><div class="v">${pts.length}</div></div></div>
-  <div class="card"><div class="eyebrow" style="margin-bottom:8px">Estimated 1RM over time</div>${chart(pts,e)}</div>
+  <div class="card"><div class="eyebrow" style="margin-bottom:8px">Estimated 1RM over time</div>
+  ${rangeTabs(liftWin,"setLiftWin")}
+  ${chart(pts.map(p=>({d:p.d,v:disp(p.v,e)})),e.unit,false)}</div>
   <div class="card" style="padding:0">${pts.slice().reverse().map(p=>`<div class="list-item">
     <span class="mono mute" style="font-size:12px">${p.d}</span>
     <span class="mono">${Math.round(disp(p.v,e))} ${e.unit}</span></div>`).join("")}</div>
   <div style="height:20px"></div>`;
 }
-function chart(pts,e){
-  if(pts.length<2) return `<div class="mute" style="font-size:13px;padding:14px 0">Two sessions needed before a line means anything.</div>`;
-  const W=300,H=110,p=6;
-  const vs=pts.map(x=>x.v),mn=Math.min(...vs)*0.95,mx=Math.max(...vs)*1.02;
-  const X=i=>p+i*(W-2*p)/(pts.length-1), Y=v=>H-p-((v-mn)/(mx-mn||1))*(H-2*p);
-  const d=pts.map((x,i)=>`${i?"L":"M"}${X(i).toFixed(1)},${Y(x.v).toFixed(1)}`).join(" ");
-  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto" preserveAspectRatio="none" role="img" aria-label="Estimated one rep max trend">
-    <path d="${d}" fill="none" stroke="var(--brass)" stroke-width="2" stroke-linejoin="round"/>
-    ${pts.map((x,i)=>`<circle cx="${X(i).toFixed(1)}" cy="${Y(x.v).toFixed(1)}" r="2.5" fill="var(--chalk)"/>`).join("")}
+const RANGES=[["1M",30],["6M",182],["12M",365],["All",0]];
+function inRange(iso,days){ if(!days) return true; return (new Date(todayISO())-new Date(iso))/86400000<=days; }
+function chart(pts,unit,decimals){
+  if(pts.length<2) return `<div class="mute" style="font-size:13px;padding:14px 0">Two data points needed before a line means anything.</div>`;
+  const W=320,H=120,pl=6,pr=6,pt=8,pb=8;
+  const xs=pts.map(p=>new Date(p.d).getTime());
+  const vs=pts.map(p=>p.v);
+  const x0=Math.min.apply(null,xs), x1=Math.max.apply(null,xs);
+  const span=(x1-x0)||1;
+  const mn=Math.min.apply(null,vs), mx=Math.max.apply(null,vs);
+  const lo=mn-(mx-mn||Math.abs(mn)*0.02||1)*0.15, hi=mx+(mx-mn||Math.abs(mx)*0.02||1)*0.15;
+  const X=t=>pl+((t-x0)/span)*(W-pl-pr);
+  const Y=v=>H-pb-((v-lo)/((hi-lo)||1))*(H-pt-pb);
+  const d=pts.map((p,i)=>`${i?"L":"M"}${X(xs[i]).toFixed(1)},${Y(p.v).toFixed(1)}`).join(" ");
+  const area=`M${X(x0).toFixed(1)},${H-pb} `+pts.map((p,i)=>`L${X(xs[i]).toFixed(1)},${Y(p.v).toFixed(1)}`).join(" ")+` L${X(x1).toFixed(1)},${H-pb} Z`;
+  const dot=(i)=>`<circle cx="${X(xs[i]).toFixed(1)}" cy="${Y(pts[i].v).toFixed(1)}" r="2.2" fill="var(--chalk)"/>`;
+  const marks=pts.length>40?[0,pts.length-1]:pts.map((_,i)=>i);
+  const fmt=n=>decimals?n.toFixed(1):Math.round(n);
+  const dfmt=t=>new Date(t).toLocaleDateString("en-NZ",{month:"short",year:"2-digit"});
+  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto" role="img" aria-label="Trend chart">
+    <path d="${area}" fill="var(--brass)" opacity="0.10"/>
+    <path d="${d}" fill="none" stroke="var(--brass)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+    ${marks.map(dot).join("")}
   </svg>
-  <div class="between mono mute" style="font-size:10.5px"><span>${Math.round(disp(mn,e))}${e.unit}</span><span>${Math.round(disp(mx,e))}${e.unit}</span></div>`;
+  <div class="between mono mute" style="font-size:10.5px">
+    <span>${dfmt(x0)}</span>
+    <span>${fmt(mn)}–${fmt(mx)} ${unit}</span>
+    <span>${dfmt(x1)}</span></div>`;
 }
-
+function rangeTabs(current,fn){
+  return `<div class="tabs">${RANGES.map(([l,d])=>`<button class="${current===d?"on":""}" onclick="${fn}(${d})">${l}</button>`).join("")}</div>`;
+}
 /* --- SETTINGS / BODY --- */
 function vSettings(){
   const b=S.body.slice().sort((a,b)=>b.date.localeCompare(a.date));
@@ -820,6 +843,8 @@ function vSettings(){
     </div>
     <div class="row"><input id="bw" inputmode="decimal" placeholder="Today's weight in kg">
       <button class="btn pri" onclick="logBody()">Log</button></div>
+    ${S.body.length>1?`<div style="margin-top:12px">${rangeTabs(bodyWin,"setBodyWin")}
+      ${chart(S.body.filter(x=>inRange(x.date,bodyWin)).slice().sort((a,c)=>a.date.localeCompare(c.date)).map(x=>({d:x.date,v:x.kg})),"kg",true)}</div>`:""}
     ${b.length?`<div style="margin-top:10px">${b.slice(0,8).map(x=>`<div class="list-item"><span class="mono mute" style="font-size:12px">${x.date}</span><span class="mono">${x.kg} kg</span></div>`).join("")}</div>`:""}
   </div>
   <div class="card">
@@ -843,7 +868,7 @@ function vSettings(){
     <button class="btn wide" style="margin-top:8px" onclick="exportCSV()">Export workouts as CSV</button>
     <button class="btn wide" style="margin-top:8px" onclick="importSheet()">Import Hevy workouts CSV</button>
     <button class="btn wide" style="margin-top:8px" onclick="measureSheet()">Import Hevy measurements CSV</button>
-    <p class="mute mono" style="font-size:11px;margin-bottom:4px">Build 16</p>
+    <p class="mute mono" style="font-size:11px;margin-bottom:4px">Build 17</p>
     <p class="mute" style="font-size:12px;margin-bottom:0">${S.exercises.length} exercises · ${S.routines.length} routines · ${S.workouts.length} workouts</p>
   </div>
   <div style="height:20px"></div>`;
