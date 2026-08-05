@@ -435,7 +435,6 @@ function skipRest(){clearInterval(restInt);document.getElementById("rest").style
 /* ---------- views ---------- */
 function go(v){view=v;render();const w=document.getElementById("app");if(w)w.scrollTop=0;}
 function render(){
-  if(view==="settings") setTimeout(diagnostics,0);
   if(!loaded){document.getElementById("app").innerHTML='<div class="empty">Loading…</div>';return;}
   const nav=[["today","▲","Train"],["routines","▤","Routines"],["history","▦","History"],["progress","◪","Progress"],["settings","⚙","You"]];
   document.getElementById("nav").innerHTML=nav.map(([k,i,l])=>
@@ -832,8 +831,7 @@ function vSettings(){
     <button class="btn wide" onclick="restoreSheet()">Restore from a backup file</button>
     <button class="btn wide" style="margin-top:8px" onclick="exportCSV()">Export workouts as CSV</button>
     <button class="btn wide" style="margin-top:8px" onclick="importSheet()">Import a Hevy CSV</button>
-    <p class="mute mono" style="font-size:11px;margin-bottom:4px">Build 11 · manifest background</p>
-    <div class="mono mute" style="font-size:11px;line-height:1.6" id="diag"></div>
+    <p class="mute mono" style="font-size:11px;margin-bottom:4px">Build 13</p>
     <p class="mute" style="font-size:12px;margin-bottom:0">${S.exercises.length} exercises · ${S.routines.length} routines · ${S.workouts.length} workouts</p>
   </div>
   <div style="height:20px"></div>`;
@@ -911,9 +909,18 @@ function runRestore(txt){
 function importSheet(){
   openSheet(`<h2>Import a Hevy CSV</h2>
   <p class="mute" style="font-size:13px">Paste the contents of a Hevy export below. Exercise names that don't match your library get created automatically.</p>
-  <textarea id="imp" rows="8" placeholder="title,start_time,exercise_title,set_index,set_type,weight_kg,reps"></textarea>
+  <input type="file" accept=".csv,text/csv" id="hfile" onchange="readHevyFile(this)">
+  <label class="fl">Or paste the contents</label>
+  <textarea id="imp" rows="6" placeholder="title,start_time,exercise_title,set_index,set_type,weight_kg,reps"></textarea>
   <button class="btn wide pri" style="margin-top:10px" onclick="runImport()">Import</button>
   <button class="btn wide" style="margin-top:8px" onclick="closeSheet()">Cancel</button>`);
+}
+function readHevyFile(input){
+  const f=input.files&&input.files[0]; if(!f) return;
+  const r=new FileReader();
+  r.onload=()=>{document.getElementById("imp").value=r.result;toast("File loaded \u2014 tap Import");};
+  r.onerror=()=>toast("Couldn't read that file");
+  r.readAsText(f);
 }
 function parseCSV(t){
   const rows=[];let row=[],cur="",q=false;
@@ -927,37 +934,85 @@ function parseCSV(t){
   if(cur||row.length){row.push(cur);rows.push(row);}
   return rows.filter(r=>r.some(c=>c!==""));
 }
+function hevyDate(str){
+  if(!str) return null;
+  const iso=(str.match(/\d{4}-\d{2}-\d{2}/)||[])[0];
+  if(iso) return iso;
+  const M={jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11};
+  const m=str.match(/([A-Za-z]{3})[a-z]*\s+(\d{1,2}),?\s+(\d{4})/);
+  if(m && M[m[1].toLowerCase()]!=null){
+    const d=new Date(Date.UTC(+m[3],M[m[1].toLowerCase()],+m[2]));
+    return d.toISOString().slice(0,10);
+  }
+  const d=new Date(str);
+  return isNaN(d)?null:d.toISOString().slice(0,10);
+}
+function cleanName(n){
+  return n.replace(/\s*\([^)]*\)\s*/g," ").replace(/\s+-\s+.*$/,"").replace(/\s+/g," ").trim();
+}
+function guessMuscle(n){
+  const t=n.toLowerCase();
+  const map=[[/lateral raise|side delt/,"Side Delts"],[/rear delt|reverse fly|face pull/,"Rear Delts"],
+    [/shoulder press|overhead press|arnold|front raise|shrug press/,"Front Delts"],[/shrug/,"Traps"],
+    [/curl/,"Biceps"],[/tricep|pushdown|skull|kickback|dip/,"Triceps"],
+    [/chest|bench|fly|pec|push up/,"Chest"],[/row|pulldown|pull up|chin up|lat /,"Back"],
+    [/squat|leg press|lunge|leg extension|hack/,"Quads"],[/deadlift|leg curl|hamstring|good morning/,"Hamstrings"],
+    [/hip thrust|glute/,"Glutes"],[/calf/,"Calves"],[/ab |crunch|plank|core|leg raise/,"Core"],
+    [/forearm|wrist|grip/,"Forearms"]];
+  for(const [re,m] of map) if(re.test(t)) return m;
+  return "Other";
+}
+function matchExercise(rawName){
+  const clean=cleanName(rawName);
+  let e=S.exercises.find(x=>x.name.toLowerCase()===rawName.toLowerCase())
+     || S.exercises.find(x=>x.name.toLowerCase()===clean.toLowerCase());
+  if(e) return e;
+  const eqm=rawName.match(/\(([^)]*)\)/);
+  const primary=guessMuscle(clean);
+  e={id:uid(),name:clean||rawName,muscles:[primary],primary,
+     equipment:eqm?eqm[1]:"Imported",unit:"kg",rest:defaultRest(clean,primary),
+     inc:/Squat|Deadlift|Leg Press|Hip Thrust|Lunge|Hack|Calf/i.test(clean)?5:2.5,custom:true};
+  S.exercises.push(e);
+  return e;
+}
 function runImport(){
   const raw=document.getElementById("imp").value.trim();
-  if(!raw){toast("Paste the CSV contents first");return;}
-  const rows=parseCSV(raw), head=rows.shift().map(h=>h.trim().toLowerCase());
+  if(!raw){toast("Choose a file or paste the CSV first");return;}
+  const rows=parseCSV(raw), head=rows.shift().map(h=>h.trim().toLowerCase().replace(/^"|"$/g,""));
   const col=(...names)=>{for(const n of names){const i=head.indexOf(n);if(i>=0)return i;}return -1;};
-  const cT=col("title","workout_name"),cD=col("start_time","date"),cE=col("exercise_title","exercise_name","exercise"),
-        cType=col("set_type"),cW=col("weight_kg","weight"),cR=col("reps");
+  const cT=col("title","workout_name"),cD=col("start_time","date"),cEnd=col("end_time"),
+        cE=col("exercise_title","exercise_name","exercise"),cType=col("set_type"),
+        cW=col("weight_kg","weight"),cR=col("reps"),cSS=col("superset_id"),cN=col("exercise_notes");
   if(cE<0||cR<0){toast("Couldn't find exercise and reps columns");return;}
-  const byWorkout={};let n=0;
+  const byWorkout={};let n=0,skipped=0,newEx=S.exercises.length;
   rows.forEach(r=>{
-    const dRaw=(cD>=0?r[cD]:"")||todayISO();
-    const date=(dRaw.match(/\d{4}-\d{2}-\d{2}/)||[null])[0] || new Date(dRaw).toISOString().slice(0,10);
-    if(!date||date==="Invalid Date")return;
-    const name=(cT>=0?r[cT]:"Imported workout")||"Imported workout";
-    const k=date+"|"+name;
-    byWorkout[k]=byWorkout[k]||{id:uid(),date,ts:new Date(date).getTime(),name,entries:[],durationSec:0,imported:true};
+    const date=hevyDate(cD>=0?r[cD]:"");
+    if(!date){skipped++;return;}
+    const name=(cT>=0?r[cT]:"")||"Imported workout";
+    const k=date+"|"+name+"|"+(cD>=0?r[cD]:"");
+    if(!byWorkout[k]){
+      let dur=0;
+      if(cEnd>=0&&r[cEnd]){const a=new Date(r[cD]),b=new Date(r[cEnd]);
+        if(!isNaN(a)&&!isNaN(b)) dur=Math.max(0,Math.round((b-a)/1000));}
+      byWorkout[k]={id:uid(),date,ts:new Date(date).getTime(),name,entries:[],durationSec:dur,imported:true};
+    }
     const exName=(r[cE]||"").trim();if(!exName)return;
-    let e=S.exercises.find(x=>x.name.toLowerCase()===exName.toLowerCase());
-    if(!e){e={id:uid(),name:exName,muscles:["Other"],primary:"Other",equipment:"Imported",unit:"kg",inc:2.5,custom:true};S.exercises.push(e);}
+    const e=matchExercise(exName);
     let en=byWorkout[k].entries.find(x=>x.exerciseId===e.id);
-    if(!en){en={exerciseId:e.id,superset:"",sets:[],notes:""};byWorkout[k].entries.push(en);}
+    if(!en){en={exerciseId:e.id,superset:(cSS>=0&&r[cSS]?String(r[cSS]).trim():""),
+      sets:[],notes:(cN>=0?(r[cN]||"").trim():"")};byWorkout[k].entries.push(en);}
     const t=(cType>=0?(r[cType]||"").toLowerCase():"normal");
-    en.sets.push({type:t.includes("warm")?"warmup":t.includes("drop")?"drop":"normal",
+    en.sets.push({type:/warm/.test(t)?"warmup":/drop/.test(t)?"drop":"normal",
       weight:parseFloat(cW>=0?r[cW]:0)||0,reps:parseInt(r[cR])||0,done:true});
     n++;
   });
   const added=Object.values(byWorkout).filter(w=>w.entries.length);
-  S.workouts=S.workouts.concat(added);save();closeSheet();render();
-  toast(`Imported ${added.length} workouts, ${n} sets`);
+  if(!added.length){toast("Nothing imported \u2014 check the file");return;}
+  S.workouts=S.workouts.concat(added);
+  newEx=S.exercises.length-newEx;
+  save();closeSheet();go("history");
+  toast(`${added.length} workouts, ${n} sets, ${newEx} new exercises`);
 }
-
 /* --- sheet --- */
 function openSheet(html){document.getElementById("sheetbody").innerHTML=html;document.getElementById("sheet").classList.add("on");}
 function closeSheet(){document.getElementById("sheet").classList.remove("on");}
