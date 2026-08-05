@@ -25,9 +25,10 @@
 html{height:100%}
 html,body{margin:0;padding:0;overflow:hidden;overscroll-behavior:none}
 body{
-  position:fixed;top:0;left:0;right:0;bottom:0;
-  width:100%;height:auto;
+  position:fixed;top:0;left:0;
+  width:100%;height:var(--app-h,100%);
   display:flex;flex-direction:column;
+  background:#101216;
 }
 body{
   background:var(--ink);color:var(--chalk);
@@ -38,6 +39,7 @@ h1,h2,h3{margin:0;font-weight:800;letter-spacing:-.02em}
 h1{font-size:24px}
 h2{font-size:17px}
 .wrap{
+  background:var(--ink);
   flex:1 1 auto;min-height:0;width:100%;max-width:560px;margin:0 auto;
   padding:calc(14px + env(safe-area-inset-top)) 14px 24px;
   overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;
@@ -66,10 +68,10 @@ nav{
   flex:0 0 auto;z-index:40;
   background:#101216;border-top:1px solid var(--line);
   display:grid;grid-template-columns:repeat(5,1fr);
+  padding-bottom:env(safe-area-inset-bottom);
 }
-#safe{flex:0 0 auto;background:#101216;height:env(safe-area-inset-bottom)}
-nav button{padding:9px 2px 8px;font-size:10px;color:var(--mute);font-family:var(--f-mono);letter-spacing:.08em;text-transform:uppercase}
-nav button .ic{display:block;font-size:17px;margin-bottom:2px;font-family:var(--f-disp)}
+nav button{padding:7px 2px 6px;font-size:10px;color:var(--mute);font-family:var(--f-mono);letter-spacing:.08em;text-transform:uppercase}
+nav button .ic{display:block;font-size:16px;margin-bottom:1px;line-height:1.1;font-family:var(--f-disp)}
 nav button.on{color:var(--brass)}
 /* set rows */
 .exblock{border:1px solid var(--line);border-radius:var(--r);margin-bottom:10px;overflow:hidden;background:var(--ink-2)}
@@ -127,7 +129,6 @@ nav button.on{color:var(--brass)}
 <div class="wrap" id="app"></div>
 <div id="rest"><div class="inner"><span id="restlabel">Rest</span><span class="t" id="resttime">0:00</span><button class="btn sm" onclick="skipRest()">Skip</button></div></div>
 <nav id="nav"></nav>
-<div id="safe"></div>
 <div class="sheet" id="sheet"><div class="panel" id="sheetbody"></div></div>
 <div class="toast" id="toast"></div>
 
@@ -830,7 +831,7 @@ function vSettings(){
     <button class="btn wide" onclick="restoreSheet()">Restore from a backup file</button>
     <button class="btn wide" style="margin-top:8px" onclick="exportCSV()">Export workouts as CSV</button>
     <button class="btn wide" style="margin-top:8px" onclick="importSheet()">Import a Hevy CSV</button>
-    <p class="mute mono" style="font-size:11px;margin-bottom:4px">Build 4 · safe-area fix</p>
+    <p class="mute mono" style="font-size:11px;margin-bottom:4px">Build 5 · measured viewport</p>
     <p class="mute" style="font-size:12px;margin-bottom:0">${S.exercises.length} exercises · ${S.routines.length} routines · ${S.workouts.length} workouts</p>
   </div>
   <div style="height:20px"></div>`;
@@ -942,6 +943,14 @@ function closeSheet(){document.getElementById("sheet").classList.remove("on");}
 document.getElementById("sheet").addEventListener("click",e=>{if(e.target.id==="sheet")closeSheet();});
 
 /* --- boot --- */
+function fitShell(){
+  const h=(window.visualViewport&&window.visualViewport.height)||window.innerHeight;
+  document.documentElement.style.setProperty("--app-h",h+"px");
+}
+fitShell();
+window.addEventListener("resize",fitShell);
+window.addEventListener("orientationchange",()=>setTimeout(fitShell,250));
+if(window.visualViewport) window.visualViewport.addEventListener("resize",fitShell);
 if("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(()=>{});
 (async()=>{await load();render();setInterval(()=>{if(view==="today"&&S.active)render();},60000);})();
 </script>
