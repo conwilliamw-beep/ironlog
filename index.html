@@ -830,8 +830,9 @@ function vSettings(){
     <p class="mute" style="font-size:12px;margin:6px 0 10px">Carries everything — workouts, routines, custom exercises, unit overrides, increments, bodyweight. Do this before any rebuild.</p>
     <button class="btn wide" onclick="restoreSheet()">Restore from a backup file</button>
     <button class="btn wide" style="margin-top:8px" onclick="exportCSV()">Export workouts as CSV</button>
-    <button class="btn wide" style="margin-top:8px" onclick="importSheet()">Import a Hevy CSV</button>
-    <p class="mute mono" style="font-size:11px;margin-bottom:4px">Build 13</p>
+    <button class="btn wide" style="margin-top:8px" onclick="importSheet()">Import Hevy workouts CSV</button>
+    <button class="btn wide" style="margin-top:8px" onclick="measureSheet()">Import Hevy measurements CSV</button>
+    <p class="mute mono" style="font-size:11px;margin-bottom:4px">Build 14</p>
     <p class="mute" style="font-size:12px;margin-bottom:0">${S.exercises.length} exercises · ${S.routines.length} routines · ${S.workouts.length} workouts</p>
   </div>
   <div style="height:20px"></div>`;
@@ -914,6 +915,49 @@ function importSheet(){
   <textarea id="imp" rows="6" placeholder="title,start_time,exercise_title,set_index,set_type,weight_kg,reps"></textarea>
   <button class="btn wide pri" style="margin-top:10px" onclick="runImport()">Import</button>
   <button class="btn wide" style="margin-top:8px" onclick="closeSheet()">Cancel</button>`);
+}
+function measureSheet(){
+  openSheet(`<h2>Import measurements</h2>
+  <p class="mute" style="font-size:13px">Pick your Hevy measurements export. Ironlog tracks bodyweight, so the weight column is imported and other measurements are ignored. Existing entries on the same date are replaced.</p>
+  <input type="file" accept=".csv,text/csv" id="mfile" onchange="readMeasureFile(this)">
+  <label class="fl">Or paste the contents</label>
+  <textarea id="mimp" rows="6" placeholder="date,weight_kg,fat_percent"></textarea>
+  <button class="btn wide pri" style="margin-top:10px" onclick="runMeasureImport()">Import</button>
+  <button class="btn wide" style="margin-top:8px" onclick="closeSheet()">Cancel</button>`);
+}
+function readMeasureFile(input){
+  const f=input.files&&input.files[0]; if(!f) return;
+  const r=new FileReader();
+  r.onload=()=>{document.getElementById("mimp").value=r.result;toast("File loaded \u2014 tap Import");};
+  r.onerror=()=>toast("Couldn't read that file");
+  r.readAsText(f);
+}
+function runMeasureImport(){
+  const raw=document.getElementById("mimp").value.trim();
+  if(!raw){toast("Choose a file or paste the CSV first");return;}
+  const rows=parseCSV(raw), head=rows.shift().map(h=>h.trim().toLowerCase().replace(/^"|"$/g,""));
+  const find=(...pats)=>{
+    for(const p of pats){ const i=head.findIndex(h=>h===p); if(i>=0) return i; }
+    for(const p of pats){ const i=head.findIndex(h=>h.includes(p)); if(i>=0) return i; }
+    return -1;
+  };
+  const cD=find("date","start_time","time","timestamp");
+  let cW=find("weight_kg","bodyweight_kg","weight","bodyweight","mass");
+  const lbCol=cW>=0 && /lb|pound/.test(head[cW]);
+  if(cD<0||cW<0){toast("Couldn't find date and weight columns");return;}
+  const seen={}; let n=0,skipped=0;
+  rows.forEach(r=>{
+    const date=hevyDate(r[cD]); const v=parseFloat(r[cW]);
+    if(!date||isNaN(v)||v<=0){skipped++;return;}
+    seen[date]=lbCol?LB2KG(v):v; n++;
+  });
+  const dates=Object.keys(seen);
+  if(!dates.length){toast("No usable rows found");return;}
+  S.body=S.body.filter(b=>!seen[b.date]);
+  dates.forEach(d=>S.body.push({date:d,kg:Math.round(seen[d]*10)/10}));
+  S.body.sort((a,b)=>a.date.localeCompare(b.date));
+  save();closeSheet();go("settings");
+  toast(`${dates.length} weigh-ins imported${skipped?` \u00b7 ${skipped} rows skipped`:""}`);
 }
 function readHevyFile(input){
   const f=input.files&&input.files[0]; if(!f) return;
