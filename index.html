@@ -99,10 +99,22 @@ nav button.on{color:var(--brass)}
 #rest .inner{max-width:560px;margin:0 auto;background:var(--brass);color:#1a1408;display:flex;justify-content:space-between;align-items:center;padding:8px 14px;font-weight:700}
 #rest .t{font-family:var(--f-mono);font-size:19px}
 /* heatmap */
-.heat{display:grid;grid-auto-flow:column;grid-template-rows:repeat(7,11px);gap:3px;overflow-x:auto;padding-bottom:4px}
-.heat i{width:11px;height:11px;border-radius:2px;background:#22262e;display:block}
-.heat i[data-l="1"]{background:#4a3d1f}.heat i[data-l="2"]{background:#8a6a2c}
-.heat i[data-l="3"]{background:#c09338}.heat i[data-l="4"]{background:var(--brass)}
+.cal{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.cal .dow{font-family:var(--f-mono);font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--mute);text-align:center;padding-bottom:2px}
+.cal .day{aspect-ratio:1;border-radius:7px;background:#1a1e25;border:1px solid transparent;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
+  font-family:var(--f-mono);font-size:12px;color:var(--mute)}
+.cal .day.pad{background:transparent}
+.cal .day.today{border-color:var(--mute)}
+.cal .day.has{color:#1a1408;font-weight:700}
+.cal .day.has[data-l="1"]{background:#7a5f28}
+.cal .day.has[data-l="2"]{background:#a97f30}
+.cal .day.has[data-l="3"]{background:#c99a38}
+.cal .day.has[data-l="4"]{background:var(--brass)}
+.cal .day .dot{width:4px;height:4px;border-radius:50%;background:#1a1408;opacity:.55}
+.calhead{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.calhead .m{font-weight:700;font-size:15px}
+.calnav{width:32px;height:32px;border-radius:8px;border:1px solid var(--line);background:var(--ink);display:grid;place-items:center;font-size:14px}
 /* misc */
 .pill{font-family:var(--f-mono);font-size:11px;background:var(--ink-3);border:1px solid var(--line);border-radius:99px;padding:3px 9px;color:var(--mute)}
 .pr{color:var(--brass);font-family:var(--f-mono);font-size:11px}
@@ -686,20 +698,48 @@ function streakDays(){
   return n;
 }
 function weekKey(iso){const d=new Date(iso);const day=(d.getDay()+6)%7;d.setDate(d.getDate()-day);return d.toISOString().slice(0,10);}
+let calMonth=null;
+function shiftMonth(n){
+  const d=new Date(calMonth+"-01"); d.setMonth(d.getMonth()+n);
+  calMonth=d.toISOString().slice(0,7); render();
+}
 function vHistory(){
-  const days={};S.workouts.forEach(w=>days[w.date]=(days[w.date]||0)+workoutVolume(w));
-  const max=Math.max(1,...Object.values(days));
-  const cells=[];const d=new Date();d.setDate(d.getDate()-((d.getDay()+6)%7)-7*25);
-  for(let i=0;i<26*7;i++){const iso=d.toISOString().slice(0,10);const v=days[iso]||0;
-    cells.push(`<i data-l="${v?Math.min(4,Math.ceil(v/max*4)):0}" title="${iso}"></i>`);d.setDate(d.getDate()+1);}
+  if(!calMonth) calMonth=todayISO().slice(0,7);
+  const vol={}, count={};
+  S.workouts.forEach(w=>{ vol[w.date]=(vol[w.date]||0)+workoutVolume(w); count[w.date]=(count[w.date]||0)+1; });
+  const max=Math.max(1,...Object.values(vol));
+  const [Y,M]=calMonth.split("-").map(Number);
+  const first=new Date(Date.UTC(Y,M-1,1));
+  const lead=(first.getUTCDay()+6)%7;
+  const dim=new Date(Date.UTC(Y,M,0)).getUTCDate();
+  const label=first.toLocaleDateString("en-NZ",{month:"long",year:"numeric",timeZone:"UTC"});
+  const cells=[];
+  for(let i=0;i<lead;i++) cells.push('<div class="day pad"></div>');
+  for(let d=1;d<=dim;d++){
+    const iso=`${Y}-${String(M).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
+    const v=vol[iso]||0;
+    const lvl=v?Math.min(4,Math.ceil(v/max*4)):0;
+    const w=S.workouts.find(x=>x.date===iso);
+    cells.push(`<div class="day ${v?"has":""} ${iso===todayISO()?"today":""}" ${v?`data-l="${lvl}"`:""}
+      ${w?`onclick="showWorkout('${w.id}')"`:""}>${d}${v?'<span class="dot"></span>':""}</div>`);
+  }
+  const monthCount=Object.keys(vol).filter(k=>k.startsWith(calMonth)).length;
   const sorted=[...S.workouts].sort((a,b)=>b.date.localeCompare(a.date)||b.ts-a.ts);
   return `<h1 style="margin-bottom:4px">History</h1>
   <p class="mute" style="margin-top:2px;font-size:13px">Everything, forever — no three-month window.</p>
-  <div class="card"><div class="eyebrow" style="margin-bottom:8px">Last 26 weeks</div>
-    <div class="heat">${cells.join("")}</div>
-    <div class="row" style="margin-top:10px;gap:14px">
+  <div class="card">
+    <div class="calhead">
+      <button class="calnav" onclick="shiftMonth(-1)">‹</button>
+      <div style="text-align:center"><div class="m">${label}</div>
+        <div class="mute mono" style="font-size:10.5px">${monthCount} session${monthCount===1?"":"s"}</div></div>
+      <button class="calnav" onclick="shiftMonth(1)">›</button>
+    </div>
+    <div class="cal">${["M","T","W","T","F","S","S"].map(x=>`<div class="dow">${x}</div>`).join("")}${cells.join("")}</div>
+    <div class="row" style="margin-top:12px;gap:8px">
       <span class="pill">${streakDays()} week streak</span>
-      <span class="pill">${S.workouts.length} workouts</span></div></div>
+      <span class="pill">${S.workouts.length} total</span>
+      <button class="btn sm" style="margin-left:auto" onclick="calMonth=todayISO().slice(0,7);render()">Today</button></div>
+  </div>
   ${sorted.length?sorted.map(w=>`<div class="card" onclick="showWorkout('${w.id}')">
     <div class="between"><div style="font-weight:700">${esc(w.name)}</div>
       <span class="mute mono" style="font-size:11.5px">${new Date(w.date).toLocaleDateString("en-NZ",{day:"numeric",month:"short",year:"2-digit"})}</span></div>
@@ -868,7 +908,7 @@ function vSettings(){
     <button class="btn wide" style="margin-top:8px" onclick="exportCSV()">Export workouts as CSV</button>
     <button class="btn wide" style="margin-top:8px" onclick="importSheet()">Import Hevy workouts CSV</button>
     <button class="btn wide" style="margin-top:8px" onclick="measureSheet()">Import Hevy measurements CSV</button>
-    <p class="mute mono" style="font-size:11px;margin-bottom:4px">Build 17</p>
+    <p class="mute mono" style="font-size:11px;margin-bottom:4px">Build 18</p>
     <p class="mute" style="font-size:12px;margin-bottom:0">${S.exercises.length} exercises · ${S.routines.length} routines · ${S.workouts.length} workouts</p>
   </div>
   <div style="height:20px"></div>`;
