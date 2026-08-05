@@ -1,4 +1,4 @@
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>Ironlog</title>
@@ -28,7 +28,6 @@ body{
   position:fixed;top:0;right:0;bottom:0;left:0;
   width:auto;height:100dvh;
   box-sizing:border-box;
-  padding-bottom:env(safe-area-inset-bottom);
   display:flex;flex-direction:column;
   background:#101216;
 }
@@ -43,7 +42,7 @@ h2{font-size:17px}
 .wrap{
   background:var(--ink);
   flex:1 1 auto;min-height:0;width:100%;max-width:560px;margin:0 auto;
-  padding:calc(14px + env(safe-area-inset-top)) 14px 24px;
+  padding:14px 14px 24px;
   overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;
 }
 .eyebrow{font-family:var(--f-mono);font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--mute)}
@@ -1104,7 +1103,7 @@ function vSettings(){
     <button class="btn wide" style="margin-top:8px" onclick="exportCSV()">Export workouts as CSV</button>
     <button class="btn wide" style="margin-top:8px" onclick="importSheet()">Import Hevy workouts CSV</button>
     <button class="btn wide" style="margin-top:8px" onclick="measureSheet()">Import Hevy measurements CSV</button>
-    <p class="mute mono" style="font-size:11px;margin-bottom:4px">Build 22 · iOS26 safe-area</p>
+    <p class="mute mono" style="font-size:11px;margin-bottom:4px">Build 23 · no viewport-fit</p>
     <p class="mute" style="font-size:12px;margin-bottom:0">${S.exercises.length} exercises · ${S.routines.length} routines · ${S.workouts.length} workouts</p>
   </div>
   <div style="height:20px"></div>`;
