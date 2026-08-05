@@ -69,10 +69,10 @@ nav{
   flex:0 0 auto;z-index:40;
   background:#101216;border-top:1px solid var(--line);
   display:grid;grid-template-columns:repeat(5,1fr);
-  padding-bottom:10px;
+  padding-bottom:15px;
 }
-nav button{padding:7px 2px 6px;font-size:10px;color:var(--mute);font-family:var(--f-mono);letter-spacing:.08em;text-transform:uppercase}
-nav button .ic{display:block;font-size:16px;margin-bottom:1px;line-height:1.1;font-family:var(--f-disp)}
+nav button{padding:11px 2px 9px;font-size:12px;color:var(--mute);font-family:var(--f-mono);letter-spacing:.08em;text-transform:uppercase}
+nav button .ic{display:block;font-size:24px;margin-bottom:3px;line-height:1.1;font-family:var(--f-disp)}
 nav button.on{color:var(--brass)}
 /* set rows */
 .exblock{border:1px solid var(--line);border-radius:var(--r);margin-bottom:10px;overflow:hidden;background:var(--ink-2)}
@@ -1103,7 +1103,7 @@ function vSettings(){
     <button class="btn wide" style="margin-top:8px" onclick="exportCSV()">Export workouts as CSV</button>
     <button class="btn wide" style="margin-top:8px" onclick="importSheet()">Import Hevy workouts CSV</button>
     <button class="btn wide" style="margin-top:8px" onclick="measureSheet()">Import Hevy measurements CSV</button>
-    <p class="mute mono" style="font-size:11px;margin-bottom:4px">Build 23 · no viewport-fit</p>
+    <p class="mute mono" style="font-size:11px;margin-bottom:4px">Build 24</p>
     <p class="mute" style="font-size:12px;margin-bottom:0">${S.exercises.length} exercises · ${S.routines.length} routines · ${S.workouts.length} workouts</p>
   </div>
   <div style="height:20px"></div>`;
