@@ -22,8 +22,13 @@
   --f-mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-html,body{margin:0;padding:0;height:100%;overflow:hidden;overscroll-behavior:none}
-body{position:fixed;inset:0;width:100%;display:flex;flex-direction:column}
+html{height:100%}
+html,body{margin:0;padding:0;overflow:hidden;overscroll-behavior:none}
+body{
+  position:fixed;top:0;left:0;right:0;bottom:0;
+  width:100%;height:100%;height:100dvh;
+  display:flex;flex-direction:column;
+}
 body{
   background:var(--ink);color:var(--chalk);
   font-family:var(--f-disp);font-size:15px;line-height:1.45;
@@ -824,6 +829,7 @@ function vSettings(){
     <button class="btn wide" onclick="restoreSheet()">Restore from a backup file</button>
     <button class="btn wide" style="margin-top:8px" onclick="exportCSV()">Export workouts as CSV</button>
     <button class="btn wide" style="margin-top:8px" onclick="importSheet()">Import a Hevy CSV</button>
+    <p class="mute mono" style="font-size:11px;margin-bottom:4px">Build 3 · fixed shell layout</p>
     <p class="mute" style="font-size:12px;margin-bottom:0">${S.exercises.length} exercises · ${S.routines.length} routines · ${S.workouts.length} workouts</p>
   </div>
   <div style="height:20px"></div>`;
