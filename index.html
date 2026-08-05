@@ -375,20 +375,26 @@ function startWorkout(routineId){
   const entries=(r?r.items:[]).map(it=>{
     const e=ex(it.exerciseId);
     const prev=lastSessionFor(it.exerciseId,null);
-    let bump=0;
+    const targets=it.sets.filter(s=>s.type==="normal");
+    const topRep=targets.length?Math.max.apply(null,targets.map(t=>+t.reps||0)):0;
+    const lowRep=(e.repLow!=null&&e.repLow>0)?e.repLow:Math.max(1,topRep-4);
+    let hitAll=false, prevWork=[];
     if(prev){
-      const working=prev.en.sets.filter(s=>s.done&&s.type==="normal");
-      const targets=it.sets.filter(s=>s.type==="normal");
-      const hitAll=working.length>=targets.length && targets.length>0 &&
-        targets.every((t,i)=>working[i] && (+working[i].reps||0) >= (+t.reps||0));
-      if(hitAll) bump=e.inc||2.5;
+      prevWork=prev.en.sets.filter(s=>s.done&&s.type==="normal");
+      hitAll = prevWork.length>=targets.length && targets.length>0 &&
+        targets.every((t,i)=>prevWork[i] && (+prevWork[i].reps||0) >= (+t.reps||0));
     }
     const sets=it.sets.map((t,i)=>{
       let w="",reps=t.reps??"";
       if(prev){
         const pool=prev.en.sets.filter(s=>s.done&&s.type===t.type);
         const p=pool[i]||pool[pool.length-1];
-        if(p){ w=(+p.weight||0)+(t.type==="normal"?bump:0); reps=p.reps??t.reps??""; }
+        if(p){
+          const pw=+p.weight||0, pr=+p.reps||0;
+          if(t.type!=="normal"){ w=pw; reps=pr; }
+          else if(hitAll){ w=pw+(e.inc||2.5); reps=lowRep; }
+          else { w=pw; reps=Math.min(pr+1, +t.reps||pr+1); }
+        }
       }
       return {type:t.type,weight:w===""?"":w,reps,done:false,ghost:true};
     });
@@ -396,7 +402,8 @@ function startWorkout(routineId){
   });
   S.active={id:uid(),date:todayISO(),ts:Date.now(),name:r?r.name:"Quick workout",routineId:routineId||null,entries,notes:"",start:Date.now()};
   save(); go("today");
-  if(entries.some(e=>e.sets.some(s=>s.weight!==""))) toast("Pre-filled from last session");
+  if(entries.some(e=>e.sets.some(s=>s.weight!=="")))
+    toast("Pre-filled \u2014 reps climb, then weight jumps");
 }
 function finishWorkout(){
   const a=S.active; if(!a) return;
@@ -581,6 +588,8 @@ function exMenu(ei){
     <div class="row" style="gap:6px;margin-top:6px;flex-wrap:wrap">
       ${[60,90,120,180,240,300].map(v=>`<button class="btn sm ${e.rest===v?'pri':''}" onclick="ex('${e.id}').rest=${v};save();closeSheet();render()">${v<60?v+'s':(v/60)+'m'}</button>`).join("")}
     </div>
+    <label class="fl">Bottom of rep range — where reps reset after a weight jump</label>
+    <input inputmode="numeric" placeholder="defaults to target minus 4" value="${e.repLow!=null?e.repLow:""}" onchange="ex('${e.id}').repLow=parseInt(this.value)||null;save()">
     <label class="fl">Auto-progression increment (kg)</label>
     <input inputmode="decimal" value="${e.inc}" onchange="ex('${e.id}').inc=parseFloat(this.value)||2.5;save()">
     <label class="fl">Superset group (leave blank for none)</label>
@@ -826,13 +835,15 @@ function vSettings(){
   </div>
   <div class="card">
     <div class="eyebrow" style="margin-bottom:8px">Your data</div>
-    <button class="btn wide pri" onclick="backupJSON()">Save a full backup file</button>
+    <button class="btn wide pri" onclick="loadProgram()">Load my PPL programme</button>
+    <p class="mute" style="font-size:12px;margin:6px 0 10px">Creates Push, Pull and Legs + Chest, and sets rest, increment and rep range on all 20 exercises. Replaces routines with the same names; never touches logged history.</p>
+    <button class="btn wide" onclick="backupJSON()">Save a full backup file</button>
     <p class="mute" style="font-size:12px;margin:6px 0 10px">Carries everything — workouts, routines, custom exercises, unit overrides, increments, bodyweight. Do this before any rebuild.</p>
     <button class="btn wide" onclick="restoreSheet()">Restore from a backup file</button>
     <button class="btn wide" style="margin-top:8px" onclick="exportCSV()">Export workouts as CSV</button>
     <button class="btn wide" style="margin-top:8px" onclick="importSheet()">Import Hevy workouts CSV</button>
     <button class="btn wide" style="margin-top:8px" onclick="measureSheet()">Import Hevy measurements CSV</button>
-    <p class="mute mono" style="font-size:11px;margin-bottom:4px">Build 14</p>
+    <p class="mute mono" style="font-size:11px;margin-bottom:4px">Build 16</p>
     <p class="mute" style="font-size:12px;margin-bottom:0">${S.exercises.length} exercises · ${S.routines.length} routines · ${S.workouts.length} workouts</p>
   </div>
   <div style="height:20px"></div>`;
@@ -1057,6 +1068,51 @@ function runImport(){
   save();closeSheet();go("history");
   toast(`${added.length} workouts, ${n} sets, ${newEx} new exercises`);
 }
+
+/* ---- built-in programme: name | sets | topReps | lowReps | restSec | incKg ---- */
+const PROGRAM=[
+ {day:"Push",items:[
+  ["Incline Bench Press",4,12,8,150,2],
+  ["Incline Chest Press",3,8,6,180,5],
+  ["Chest Dip",3,12,8,120,2.5],
+  ["Shoulder Press",4,12,8,120,2],
+  ["Lateral Raise",3,15,12,60,2],
+  ["Triceps Pushdown",3,12,8,75,2.5]]},
+ {day:"Pull",items:[
+  ["T Bar Row",4,8,6,180,2.5],
+  ["Lat Pulldown",3,10,8,150,5],
+  ["Seated Cable Row",3,12,8,120,5],
+  ["Face Pull",3,15,12,60,2.5],
+  ["Rear Delt Reverse Fly",3,15,12,60,5],
+  ["Hammer Curl",3,12,8,75,2],
+  ["Bicep Curl",2,12,8,60,2.5]]},
+ {day:"Legs + Chest",items:[
+  ["Hack Squat",4,10,8,210,5],
+  ["Romanian Deadlift",3,10,8,180,5],
+  ["Lying Leg Curl",3,12,8,120,5],
+  ["Leg Extension",3,12,8,120,5],
+  ["Calf Press",4,12,8,75,5],
+  ["Incline Chest Fly",3,12,8,75,2],
+  ["Hanging Leg Raise",3,15,12,60,0]]}
+];
+function loadProgram(){
+  if(!confirm("Add the three PPL routines and set rest, increments and rep ranges on every exercise?")) return;
+  let made=0;
+  PROGRAM.forEach(d=>{
+    const items=d.items.map(([name,sets,top,low,rest,inc])=>{
+      const e=matchExercise(name);
+      e.rest=rest; e.inc=inc; e.repLow=low;
+      return {exerciseId:e.id,superset:"",
+        sets:Array.from({length:sets},()=>({type:"normal",reps:top}))};
+    });
+    S.routines=S.routines.filter(r=>r.name!==d.day);
+    S.routines.push({id:uid(),name:d.day,items});
+    made++;
+  });
+  save(); closeSheet(); go("routines");
+  toast(`${made} routines loaded and tuned`);
+}
+
 /* --- sheet --- */
 function openSheet(html){document.getElementById("sheetbody").innerHTML=html;document.getElementById("sheet").classList.add("on");}
 function closeSheet(){document.getElementById("sheet").classList.remove("on");}
