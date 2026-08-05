@@ -376,6 +376,39 @@ function bestFor(exId){
   }));
   return {weight:bw,e1rm:b1,volume:bv};
 }
+function exSessions(exId){
+  return S.workouts.filter(w=>w.entries.some(e=>e.exerciseId===exId&&e.sets.some(s=>s.done)))
+    .sort((a,b)=>a.date.localeCompare(b.date)||a.ts-b.ts)
+    .map(w=>{
+      const en=w.entries.find(e=>e.exerciseId===exId);
+      const work=en.sets.filter(s=>s.done&&s.type!=="warmup");
+      const top=work.reduce((m,s)=>((+s.weight||0)>(+m.weight||0)?s:m),work[0]||{weight:0,reps:0});
+      return {id:w.id,date:w.date,name:w.name,sets:work,
+        topW:+top.weight||0,topR:+top.reps||0,
+        vol:work.reduce((n,s)=>n+(+s.weight||0)*(+s.reps||0),0)};
+    });
+}
+const STALL_WINDOW=90;
+function stallInfo(exId){
+  const h=exSessions(exId).filter(x=>daysAgo(x.date)<=STALL_WINDOW);
+  if(h.length<3) return null;
+  const bw=h.every(x=>x.topW===0);
+  const score=x=>bw? x.topR : Math.max.apply(null,x.sets.map(s=>e1rm(+s.weight||0,+s.reps||0)).concat([0]));
+  let best=-1,idx=0;
+  h.forEach((x,i)=>{const v=score(x); if(v>best+1e-9){best=v;idx=i;}});
+  const since=h.length-1-idx;
+  return {since,best,bw,last:h[h.length-1],sessions:h.length,
+    stalled: since>=4,
+    bestLabel:(bw? best+" reps" : Math.round(best)+" kg est. 1RM")+" (90d)"};
+}
+function nextUp(){
+  if(!S.routines.length) return null;
+  const done=S.workouts.slice().sort((a,b)=>b.date.localeCompare(a.date)||b.ts-a.ts);
+  const lastNamed=done.find(w=>S.routines.some(r=>r.name===w.name));
+  if(!lastNamed) return S.routines[0];
+  const i=S.routines.findIndex(r=>r.name===lastNamed.name);
+  return S.routines[(i+1)%S.routines.length];
+}
 function workoutVolume(w){
   let v=0; w.entries.forEach(en=>en.sets.forEach(s=>{ if(s.done&&s.type!=="warmup") v+=(+s.weight||0)*(+s.reps||0); })); return v;
 }
@@ -475,7 +508,15 @@ function vToday(){
     <div class="stat"><div class="k">This week</div><div class="v">${wk.length}</div></div>
     <div class="stat"><div class="k">Total</div><div class="v">${S.workouts.length}</div></div>
   </div>
-  <div class="eyebrow" style="margin-bottom:6px">Start from a routine</div>
+  ${(()=>{const n=nextUp();if(!n)return"";
+    const last=S.workouts.slice().sort((a,b)=>b.date.localeCompare(a.date)||b.ts-a.ts)[0];
+    const gap=last?daysAgo(last.date):null;
+    return `<div class="card" style="border-color:var(--brass-dim);background:#1d1810">
+      <div class="eyebrow" style="color:var(--brass);margin-bottom:4px">Next up</div>
+      <div class="between"><div><div style="font-weight:800;font-size:18px">${esc(n.name)}</div>
+        <div class="mute mono" style="font-size:11.5px">${last?`Last session ${gap===0?"today":gap===1?"yesterday":gap+" days ago"} \u00b7 ${esc(last.name)}`:"No sessions yet"}</div></div>
+        <button class="btn pri" onclick="startWorkout('${n.id}')">Start</button></div></div>`;})()}
+  <div class="eyebrow" style="margin-bottom:6px">Or pick another</div>
   ${S.routines.length? S.routines.map(r=>`
     <div class="card between">
       <div><div style="font-weight:700">${esc(r.name)}</div>
@@ -610,6 +651,14 @@ function exMenu(ei){
     <textarea rows="2" placeholder="Seat 4, pin 3, pronated grip" onchange="ex('${e.id}').note=this.value;save();closeSheet();render()">${esc(e.note||"")}</textarea>
     <label class="fl">Note for today only</label>
     <textarea rows="2" onchange="S.active.entries[${ei}].notes=this.value;save()">${esc(en.notes)}</textarea>
+    ${(()=>{const h=exSessions(e.id).slice(-12).reverse();
+      if(!h.length) return "";
+      const st=stallInfo(e.id);
+      return `<div class="eyebrow" style="margin:14px 0 6px">History \u00b7 last ${h.length}</div>
+      ${st&&st.stalled?`<div class="mute" style="font-size:12px;color:var(--warn);margin-bottom:6px">Stalled \u2014 ${st.since} sessions since a weight increase.</div>`:""}
+      <div class="card" style="padding:0">${h.map(x=>`<div class="list-item">
+        <span class="mono mute" style="font-size:11.5px">${x.date}</span>
+        <span class="mono" style="font-size:12px">${x.sets.map(s2=>`${disp(s2.weight,e)}\u00d7${s2.reps}`).join("  ")}</span></div>`).join("")}</div>`;})()}
     <button class="btn wide danger" style="margin-top:12px" onclick="S.active.entries.splice(${ei},1);save();closeSheet();render()">Remove exercise</button>
     <button class="btn wide" style="margin-top:8px" onclick="closeSheet()">Done</button>`);
 }
@@ -758,9 +807,54 @@ function showWorkout(id){
     <div style="font-weight:700">${esc(e.name)}</div>
     <div class="mono mute" style="font-size:12px;margin-top:4px">${en.sets.map(s=>`${s.type==="warmup"?"w ":s.type==="drop"?"d ":""}${disp(s.weight,e)}${e.unit}×${s.reps}`).join("   ")}</div>
     ${en.notes?`<div class="mute" style="font-size:12px;margin-top:5px">${esc(en.notes)}</div>`:""}</div>`}).join("")}
-  <button class="btn wide" onclick="repeatWorkout('${w.id}')">Repeat this workout</button>
+  <button class="btn wide" onclick="editWorkout('${w.id}')">Edit this workout</button>
+  <button class="btn wide" style="margin-top:8px" onclick="repeatWorkout('${w.id}')">Repeat this workout</button>
   <button class="btn wide danger" style="margin-top:8px" onclick="if(confirm('Delete this workout?')){S.workouts=S.workouts.filter(x=>x.id!=='${w.id}');save();closeSheet();render()}">Delete</button>
   <button class="btn wide" style="margin-top:8px" onclick="closeSheet()">Close</button>`);
+}
+function editWorkout(id){
+  const w=S.workouts.find(x=>x.id===id); if(!w) return;
+  openSheet(`<div class="between"><h2>Edit workout</h2><span class="mute mono" style="font-size:12px">${w.date}</span></div>
+  <label class="fl">Workout name</label>
+  <input value="${esc(w.name)}" onchange="editField('${id}','name',this.value)">
+  <label class="fl">Date</label>
+  <input type="date" value="${w.date}" onchange="editField('${id}','date',this.value)">
+  ${w.entries.map((en,ei)=>{const e=ex(en.exerciseId);return`
+    <div class="exblock" style="margin-top:10px">
+      <div class="exhead"><div><span class="nm">${esc(e.name)}</span></div>
+        <button class="btn sm danger" onclick="editRemoveEx('${id}',${ei})">Remove</button></div>
+      <div class="colhead"><span>Set</span><span></span><span>Weight (${e.unit})</span><span>Reps</span><span></span></div>
+      ${en.sets.map((st,si)=>`<div class="setrow">
+        <span class="stag ${st.type==="warmup"?"w":st.type==="drop"?"d":""}">${st.type==="warmup"?"W":st.type==="drop"?"D":si+1}</span>
+        <span class="prev">\u2014</span>
+        <input inputmode="decimal" value="${disp(st.weight,e)}" onchange="editSet('${id}',${ei},${si},'weight',this.value)">
+        <input inputmode="numeric" value="${st.reps}" onchange="editSet('${id}',${ei},${si},'reps',this.value)">
+        <button class="chk" onclick="editRemoveSet('${id}',${ei},${si})">\u2715</button></div>`).join("")}
+    </div>`}).join("")}
+  <button class="btn wide pri" style="margin-top:12px" onclick="closeSheet();render();toast('Workout updated')">Done</button>`);
+}
+function editField(id,f,v){
+  const w=S.workouts.find(x=>x.id===id); if(!w) return;
+  if(f==="date"&&!v) return;
+  w[f]=v; if(f==="date") w.ts=new Date(v).getTime();
+  save();
+}
+function editSet(id,ei,si,f,v){
+  const w=S.workouts.find(x=>x.id===id); if(!w) return;
+  const en=w.entries[ei], e=ex(en.exerciseId), st=en.sets[si];
+  st[f]= f==="weight"? (toKg(v,e)||0) : (parseInt(v)||0);
+  save();
+}
+function editRemoveSet(id,ei,si){
+  const w=S.workouts.find(x=>x.id===id); if(!w) return;
+  w.entries[ei].sets.splice(si,1);
+  if(!w.entries[ei].sets.length) w.entries.splice(ei,1);
+  save(); editWorkout(id);
+}
+function editRemoveEx(id,ei){
+  const w=S.workouts.find(x=>x.id===id); if(!w) return;
+  if(!confirm("Remove this exercise from the workout?")) return;
+  w.entries.splice(ei,1); save(); editWorkout(id);
 }
 function repeatWorkout(id){
   const w=S.workouts.find(x=>x.id===id);
@@ -792,6 +886,67 @@ function muscleLoad(days){
   return Object.keys(sets).map(m=>({m,sets:Math.round(sets[m]*10)/10,vol:Math.round(vol[m])}))
     .sort((a,b)=>b.sets-a.sets);
 }
+function weekBounds(offset){
+  const d=new Date(todayISO()); d.setDate(d.getDate()-((d.getDay()+6)%7)-7*offset);
+  const start=d.toISOString().slice(0,10);
+  const e=new Date(d); e.setDate(e.getDate()+6);
+  return {start,end:e.toISOString().slice(0,10)};
+}
+function weekStats(offset){
+  const {start,end}=weekBounds(offset);
+  const ws=S.workouts.filter(w=>w.date>=start&&w.date<=end);
+  let sets=0,vol=0; const mus={};
+  ws.forEach(w=>w.entries.forEach(en=>{
+    const e=ex(en.exerciseId);
+    const work=en.sets.filter(s2=>s2.done&&s2.type!=="warmup");
+    sets+=work.length;
+    vol+=work.reduce((n,s2)=>n+(+s2.weight||0)*(+s2.reps||0),0);
+    (e.muscles||[]).forEach((m,i)=>{ mus[m]=(mus[m]||0)+work.length*(i===0?1:0.5); });
+  }));
+  return {start,end,sessions:ws.length,sets,vol:Math.round(vol),mus,workouts:ws};
+}
+function vWeek(){
+  const a=weekStats(0), b=weekStats(1);
+  const improved=[];
+  a.workouts.forEach(w=>w.entries.forEach(en=>{
+    const h=exSessions(en.exerciseId);
+    const i=h.findIndex(x=>x.id===w.id);
+    if(i>0){
+      const cur=Math.max.apply(null,h[i].sets.map(s2=>e1rm(+s2.weight||0,+s2.reps||0)).concat([0]));
+      const prevBest=Math.max.apply(null,h.slice(0,i).map(x=>Math.max.apply(null,x.sets.map(s2=>e1rm(+s2.weight||0,+s2.reps||0)).concat([0]))));
+      if(cur>prevBest) improved.push(ex(en.exerciseId).name);
+    }
+  }));
+  const delta=(now,then,unit)=>{
+    if(!then) return "";
+    const d=now-then, pct=Math.round(d/then*100);
+    return `<span class="mono" style="font-size:11px;color:${d>=0?"var(--good)":"var(--warn)"}">${d>=0?"+":""}${pct}%</span>`;
+  };
+  const top=Object.entries(a.mus).sort((x,y)=>y[1]-x[1]);
+  const dfmt=d=>new Date(d).toLocaleDateString("en-NZ",{day:"numeric",month:"short"});
+  return `<p class="mute mono" style="font-size:11.5px;margin-top:0">${dfmt(a.start)} \u2013 ${dfmt(a.end)}</p>
+  <div class="grid3" style="margin-bottom:12px">
+    <div class="stat"><div class="k">Sessions</div><div class="v">${a.sessions}</div><div>${delta(a.sessions,b.sessions)}</div></div>
+    <div class="stat"><div class="k">Working sets</div><div class="v">${a.sets}</div><div>${delta(a.sets,b.sets)}</div></div>
+    <div class="stat"><div class="k">Volume</div><div class="v" style="font-size:15px">${a.vol.toLocaleString()}</div><div>${delta(a.vol,b.vol)}</div></div>
+  </div>
+  <div class="card">
+    <div class="eyebrow" style="margin-bottom:8px">Lifts improved this week</div>
+    ${improved.length?[...new Set(improved)].map(n=>`<div style="font-size:13.5px;padding:2px 0">\u2605 ${esc(n)}</div>`).join("")
+      :`<div class="mute" style="font-size:13px">No new bests yet this week.</div>`}
+  </div>
+  <div class="card">
+    <div class="eyebrow" style="margin-bottom:8px">Sets per muscle</div>
+    ${top.length?top.map(([m,v])=>`<div class="between" style="padding:2px 0">
+      <span style="font-size:13.5px">${esc(m)}</span><span class="mono mute" style="font-size:12px">${v}</span></div>`).join("")
+      :`<div class="mute" style="font-size:13px">Nothing logged this week.</div>`}
+  </div>
+  <div class="card">
+    <div class="eyebrow" style="margin-bottom:6px">Last week</div>
+    <div class="mono mute" style="font-size:12px">${b.sessions} sessions \u00b7 ${b.sets} sets \u00b7 ${b.vol.toLocaleString()} kg</div>
+  </div>
+  <div style="height:20px"></div>`;
+}
 function vMuscles(){
   const rows=muscleLoad(progWin);
   if(!rows.length) return `<div class="empty">Nothing logged in this window.</div>`;
@@ -812,7 +967,9 @@ function vProgress(){
   <div class="tabs">
     <button class="${progTab==="lifts"?"on":""}" onclick="progTab='lifts';render()">Lifts</button>
     <button class="${progTab==="muscles"?"on":""}" onclick="progTab='muscles';render()">Muscle volume</button>
+    <button class="${progTab==="week"?"on":""}" onclick="progTab='week';render()">This week</button>
   </div>`;
+  if(progTab==="week") return head+vWeek();
   if(progTab==="muscles") return head+vMuscles();
   const logged=[...new Set(S.workouts.flatMap(w=>w.entries.map(e=>e.exerciseId)))];
   if(!logged.length) return head+`<div class="empty"><div class="big-e">◪</div>Log a workout and your PRs and strength curves show up here.</div>`;
@@ -825,11 +982,28 @@ function vProgress(){
     if(top>0&&inRange(w.date,liftWin))pts.push({d:w.date,v:top});
   });
   return head+`
-  <div class="tabs">${logged.map(id=>`<button class="${id===progEx?"on":""}" onclick="progEx='${id}';render()">${esc(ex(id).name)}</button>`).join("")}</div>
+  ${(()=>{const bad=logged.map(id=>({id,st:stallInfo(id)})).filter(x=>x.st&&x.st.stalled)
+      .sort((a,b)=>b.st.since-a.st.since);
+    if(!bad.length) return "";
+    return `<div class="card" style="border-color:#5a4030">
+      <div class="eyebrow" style="color:var(--warn);margin-bottom:6px">${bad.length} lift${bad.length===1?"":"s"} stalled</div>
+      ${bad.slice(0,5).map(x=>`<div class="between" style="padding:3px 0" onclick="progEx='${x.id}';render()">
+        <span style="font-size:13.5px">${esc(ex(x.id).name)}</span>
+        <span class="mono mute" style="font-size:11.5px">${x.st.since} sessions</span></div>`).join("")}</div>`;})()}
+  <label class="fl" style="margin-top:0">Exercise</label>
+  <select onchange="progEx=this.value;render()" style="margin-bottom:12px">
+    ${logged.slice().sort((a,b)=>ex(a).name.localeCompare(ex(b).name))
+      .map(id=>`<option value="${id}" ${id===progEx?"selected":""}>${esc(ex(id).name)}</option>`).join("")}
+  </select>
   <div class="grid3" style="margin-bottom:12px">
     <div class="stat"><div class="k">Best set</div><div class="v" style="font-size:17px">${best.weight?disp(best.weight,e)+e.unit:"—"}</div></div>
     <div class="stat"><div class="k">Est. 1RM</div><div class="v" style="font-size:17px">${best.e1rm?Math.round(disp(best.e1rm,e))+e.unit:"—"}</div></div>
     <div class="stat"><div class="k">Sessions</div><div class="v">${pts.length}</div></div></div>
+  ${(()=>{const st=stallInfo(progEx);if(!st)return"";
+    if(st.stalled) return `<div class="card" style="border-color:#5a4030;background:#241a14">
+      <div class="eyebrow" style="color:var(--warn);margin-bottom:4px">Stalled</div>
+      <div style="font-size:13.5px">No improvement in weight or reps for ${st.since} sessions \u2014 best is still ${esc(st.bestLabel)}. Try dropping to the bottom of your rep range and building back up, or cut a set and push the rest harder.</div></div>`;
+    return `<div class="card" style="padding:10px"><div class="mono mute" style="font-size:11.5px">Best ${esc(st.bestLabel)} \u00b7 improved ${st.since} session${st.since===1?"":"s"} ago</div></div>`;})()}
   <div class="card"><div class="eyebrow" style="margin-bottom:8px">Estimated 1RM over time</div>
   ${rangeTabs(liftWin,"setLiftWin")}
   ${chart(pts.map(p=>({d:p.d,v:disp(p.v,e)})),e.unit,false)}</div>
@@ -840,32 +1014,44 @@ function vProgress(){
 }
 const RANGES=[["1M",30],["6M",182],["12M",365],["All",0]];
 function inRange(iso,days){ if(!days) return true; return (new Date(todayISO())-new Date(iso))/86400000<=days; }
+function niceStep(range,target){
+  if(!(range>0)) return 1;
+  const raw=range/target, mag=Math.pow(10,Math.floor(Math.log10(raw))), n=raw/mag;
+  const mult = n<=1?1 : n<=2?2 : n<=2.5?2.5 : n<=5?5 : 10;
+  return mult*mag;
+}
 function chart(pts,unit,decimals){
   if(pts.length<2) return `<div class="mute" style="font-size:13px;padding:14px 0">Two data points needed before a line means anything.</div>`;
-  const W=320,H=120,pl=6,pr=6,pt=8,pb=8;
+  const W=320,H=140,pl=34,pr=6,pt=10,pb=18;
   const xs=pts.map(p=>new Date(p.d).getTime());
   const vs=pts.map(p=>p.v);
-  const x0=Math.min.apply(null,xs), x1=Math.max.apply(null,xs);
-  const span=(x1-x0)||1;
+  const x0=Math.min.apply(null,xs), x1=Math.max.apply(null,xs), span=(x1-x0)||1;
   const mn=Math.min.apply(null,vs), mx=Math.max.apply(null,vs);
-  const lo=mn-(mx-mn||Math.abs(mn)*0.02||1)*0.15, hi=mx+(mx-mn||Math.abs(mx)*0.02||1)*0.15;
+  const pad=((mx-mn)||Math.max(1,Math.abs(mx)*0.04))*0.18;
+  const step=niceStep((mx+pad)-(mn-pad),4);
+  const lo=Math.floor((mn-pad)/step)*step, hi=Math.ceil((mx+pad)/step)*step;
   const X=t=>pl+((t-x0)/span)*(W-pl-pr);
   const Y=v=>H-pb-((v-lo)/((hi-lo)||1))*(H-pt-pb);
+  const fmt=n=>{const r=Math.round(n*100)/100; return decimals||step<1? r.toFixed(1) : String(Math.round(r));};
+  const lines=[];
+  for(let v=lo; v<=hi+1e-9; v+=step){
+    const y=Y(v).toFixed(1);
+    lines.push(`<line x1="${pl}" y1="${y}" x2="${W-pr}" y2="${y}" stroke="var(--line)" stroke-width="0.6" opacity="0.55"/>`);
+    lines.push(`<text x="${pl-5}" y="${(+y+3).toFixed(1)}" text-anchor="end" font-size="8.5" fill="var(--mute)" font-family="ui-monospace,monospace">${fmt(v)}</text>`);
+  }
   const d=pts.map((p,i)=>`${i?"L":"M"}${X(xs[i]).toFixed(1)},${Y(p.v).toFixed(1)}`).join(" ");
   const area=`M${X(x0).toFixed(1)},${H-pb} `+pts.map((p,i)=>`L${X(xs[i]).toFixed(1)},${Y(p.v).toFixed(1)}`).join(" ")+` L${X(x1).toFixed(1)},${H-pb} Z`;
-  const dot=(i)=>`<circle cx="${X(xs[i]).toFixed(1)}" cy="${Y(pts[i].v).toFixed(1)}" r="2.2" fill="var(--chalk)"/>`;
   const marks=pts.length>40?[0,pts.length-1]:pts.map((_,i)=>i);
-  const fmt=n=>decimals?n.toFixed(1):Math.round(n);
   const dfmt=t=>new Date(t).toLocaleDateString("en-NZ",{month:"short",year:"2-digit"});
   return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto" role="img" aria-label="Trend chart">
+    ${lines.join("")}
     <path d="${area}" fill="var(--brass)" opacity="0.10"/>
     <path d="${d}" fill="none" stroke="var(--brass)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
-    ${marks.map(dot).join("")}
+    ${marks.map(i=>`<circle cx="${X(xs[i]).toFixed(1)}" cy="${Y(pts[i].v).toFixed(1)}" r="2.2" fill="var(--chalk)"/>`).join("")}
+    <text x="${pl}" y="${H-5}" font-size="8.5" fill="var(--mute)" font-family="ui-monospace,monospace">${dfmt(x0)}</text>
+    <text x="${W-pr}" y="${H-5}" text-anchor="end" font-size="8.5" fill="var(--mute)" font-family="ui-monospace,monospace">${dfmt(x1)}</text>
   </svg>
-  <div class="between mono mute" style="font-size:10.5px">
-    <span>${dfmt(x0)}</span>
-    <span>${fmt(mn)}–${fmt(mx)} ${unit}</span>
-    <span>${dfmt(x1)}</span></div>`;
+  <div class="mono mute" style="font-size:10.5px;text-align:right">${unit}</div>`;
 }
 function rangeTabs(current,fn){
   return `<div class="tabs">${RANGES.map(([l,d])=>`<button class="${current===d?"on":""}" onclick="${fn}(${d})">${l}</button>`).join("")}</div>`;
@@ -898,6 +1084,14 @@ function vSettings(){
       <option value="lb" ${S.settings.unit==="lb"?"selected":""}>Pounds</option></select>
     <p class="mute" style="font-size:12px">Weights are stored in kilograms regardless. The per-exercise override on the ••• menu is what handles lb-stack machines.</p>
   </div>
+  ${(()=>{const lb=S.settings.lastBackup;
+    const days=lb?daysAgo(lb):null;
+    if(days!==null&&days<30) return "";
+    if(!S.workouts.length) return "";
+    return `<div class="card" style="border-color:#5a4030;background:#241a14">
+      <div class="eyebrow" style="color:var(--warn);margin-bottom:4px">Back up your data</div>
+      <div style="font-size:13.5px">${lb?`Last backup was ${days} days ago.`:"You haven't saved a backup yet."} Your ${S.workouts.length} workouts live only on this device.</div>
+      <button class="btn wide pri" style="margin-top:10px" onclick="backupJSON()">Save a backup now</button></div>`;})()}
   <div class="card">
     <div class="eyebrow" style="margin-bottom:8px">Your data</div>
     <button class="btn wide pri" onclick="loadProgram()">Load my PPL programme</button>
@@ -908,7 +1102,7 @@ function vSettings(){
     <button class="btn wide" style="margin-top:8px" onclick="exportCSV()">Export workouts as CSV</button>
     <button class="btn wide" style="margin-top:8px" onclick="importSheet()">Import Hevy workouts CSV</button>
     <button class="btn wide" style="margin-top:8px" onclick="measureSheet()">Import Hevy measurements CSV</button>
-    <p class="mute mono" style="font-size:11px;margin-bottom:4px">Build 18</p>
+    <p class="mute mono" style="font-size:11px;margin-bottom:4px">Build 21</p>
     <p class="mute" style="font-size:12px;margin-bottom:0">${S.exercises.length} exercises · ${S.routines.length} routines · ${S.workouts.length} workouts</p>
   </div>
   <div style="height:20px"></div>`;
@@ -954,6 +1148,7 @@ function backupJSON(){
   const a=document.createElement("a");
   a.href=URL.createObjectURL(new Blob([JSON.stringify(payload)],{type:"application/json"}));
   a.download=`ironlog-backup-${todayISO()}.json`;a.click();
+  S.settings.lastBackup=todayISO(); save();
   toast("Backup saved to your downloads");
 }
 function restoreSheet(){
