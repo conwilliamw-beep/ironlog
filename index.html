@@ -25,8 +25,8 @@
 html{height:100%}
 html,body{margin:0;padding:0;overflow:hidden;overscroll-behavior:none}
 body{
-  position:fixed;top:0;left:0;
-  width:100%;height:var(--app-h,100%);
+  position:fixed;top:0;right:0;bottom:0;left:0;
+  width:auto;height:auto;
   display:flex;flex-direction:column;
   background:#101216;
 }
@@ -832,7 +832,7 @@ function vSettings(){
     <button class="btn wide" onclick="restoreSheet()">Restore from a backup file</button>
     <button class="btn wide" style="margin-top:8px" onclick="exportCSV()">Export workouts as CSV</button>
     <button class="btn wide" style="margin-top:8px" onclick="importSheet()">Import a Hevy CSV</button>
-    <p class="mute mono" style="font-size:11px;margin-bottom:4px">Build 9 · nav margin removed</p>
+    <p class="mute mono" style="font-size:11px;margin-bottom:4px">Build 10 · edge-anchored shell</p>
     <div class="mono mute" style="font-size:11px;line-height:1.6" id="diag"></div>
     <p class="mute" style="font-size:12px;margin-bottom:0">${S.exercises.length} exercises · ${S.routines.length} routines · ${S.workouts.length} workouts</p>
   </div>
@@ -851,7 +851,7 @@ function diagnostics(){
     "screen "+window.screen.width+"\u00d7"+window.screen.height,
     "innerHeight "+window.innerHeight,
     "visualViewport "+Math.round((window.visualViewport&&window.visualViewport.height)||0),
-    "shell --app-h "+cs.getPropertyValue("--app-h").trim(),
+    "body height "+Math.round(document.body.getBoundingClientRect().height),
     "safe-area-bottom "+Math.round(inset)+"px",
     "nav bottom edge "+Math.round(nav.bottom),
     "standalone "+(window.navigator.standalone?"yes":"no")
