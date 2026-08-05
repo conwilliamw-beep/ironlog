@@ -68,9 +68,7 @@ nav{
   flex:0 0 auto;z-index:40;
   background:#101216;border-top:1px solid var(--line);
   display:grid;grid-template-columns:repeat(5,1fr);
-  padding-bottom:calc(14px + env(safe-area-inset-bottom,0px));
-  margin-bottom:calc(-1 * env(safe-area-inset-bottom,0px));
-  box-shadow:0 40px 0 40px #101216;
+  padding-bottom:calc(10px + env(safe-area-inset-bottom,0px));
 }
 nav button{padding:7px 2px 6px;font-size:10px;color:var(--mute);font-family:var(--f-mono);letter-spacing:.08em;text-transform:uppercase}
 nav button .ic{display:block;font-size:16px;margin-bottom:1px;line-height:1.1;font-family:var(--f-disp)}
@@ -834,7 +832,7 @@ function vSettings(){
     <button class="btn wide" onclick="restoreSheet()">Restore from a backup file</button>
     <button class="btn wide" style="margin-top:8px" onclick="exportCSV()">Export workouts as CSV</button>
     <button class="btn wide" style="margin-top:8px" onclick="importSheet()">Import a Hevy CSV</button>
-    <p class="mute mono" style="font-size:11px;margin-bottom:4px">Build 7 · nav bleed</p>
+    <p class="mute mono" style="font-size:11px;margin-bottom:4px">Build 9 · nav margin removed</p>
     <div class="mono mute" style="font-size:11px;line-height:1.6" id="diag"></div>
     <p class="mute" style="font-size:12px;margin-bottom:0">${S.exercises.length} exercises · ${S.routines.length} routines · ${S.workouts.length} workouts</p>
   </div>
@@ -967,13 +965,20 @@ document.getElementById("sheet").addEventListener("click",e=>{if(e.target.id==="
 
 /* --- boot --- */
 function fitShell(){
-  const h=(window.visualViewport&&window.visualViewport.height)||window.innerHeight;
-  document.documentElement.style.setProperty("--app-h",h+"px");
+  const vv=(window.visualViewport&&window.visualViewport.height)||0;
+  const ih=window.innerHeight||0;
+  const de=document.documentElement.clientHeight||0;
+  const vals=[vv,ih,de].filter(v=>v>200);
+  const h=vals.length?Math.min.apply(null,vals):ih;
+  document.documentElement.style.setProperty("--app-h",Math.round(h)+"px");
 }
 fitShell();
-window.addEventListener("resize",fitShell);
-window.addEventListener("orientationchange",()=>setTimeout(fitShell,250));
-if(window.visualViewport) window.visualViewport.addEventListener("resize",fitShell);
+["load","pageshow","resize","orientationchange"].forEach(ev=>window.addEventListener(ev,()=>setTimeout(fitShell,0)));
+[80,300,900].forEach(t=>setTimeout(fitShell,t));
+if(window.visualViewport){
+  window.visualViewport.addEventListener("resize",fitShell);
+  window.visualViewport.addEventListener("scroll",fitShell);
+}
 if("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(()=>{});
 (async()=>{await load();render();setInterval(()=>{if(view==="today"&&S.active)render();},60000);})();
 </script>
