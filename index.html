@@ -68,7 +68,7 @@ nav{
   flex:0 0 auto;z-index:40;
   background:#101216;border-top:1px solid var(--line);
   display:grid;grid-template-columns:repeat(5,1fr);
-  padding-bottom:env(safe-area-inset-bottom);
+  padding-bottom:16px;
 }
 nav button{padding:7px 2px 6px;font-size:10px;color:var(--mute);font-family:var(--f-mono);letter-spacing:.08em;text-transform:uppercase}
 nav button .ic{display:block;font-size:16px;margin-bottom:1px;line-height:1.1;font-family:var(--f-disp)}
@@ -121,7 +121,7 @@ nav button.on{color:var(--brass)}
 .tabs{display:flex;gap:6px;margin-bottom:12px;overflow-x:auto}
 .tabs button{white-space:nowrap;font-family:var(--f-mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--mute);padding:6px 10px;border:1px solid var(--line);border-radius:99px}
 .tabs button.on{color:var(--brass);border-color:var(--brass-dim);background:#221c10}
-.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(84px + env(safe-area-inset-bottom));background:var(--chalk);color:var(--ink);padding:9px 16px;border-radius:99px;font-weight:700;font-size:13px;z-index:80;opacity:0;transition:opacity .2s;pointer-events:none}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:84px;background:var(--chalk);color:var(--ink);padding:9px 16px;border-radius:99px;font-weight:700;font-size:13px;z-index:80;opacity:0;transition:opacity .2s;pointer-events:none}
 .toast.on{opacity:1}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
@@ -831,7 +831,7 @@ function vSettings(){
     <button class="btn wide" onclick="restoreSheet()">Restore from a backup file</button>
     <button class="btn wide" style="margin-top:8px" onclick="exportCSV()">Export workouts as CSV</button>
     <button class="btn wide" style="margin-top:8px" onclick="importSheet()">Import a Hevy CSV</button>
-    <p class="mute mono" style="font-size:11px;margin-bottom:4px">Build 5 · measured viewport</p>
+    <p class="mute mono" style="font-size:11px;margin-bottom:4px">Build 6 · fixed nav clearance</p>
     <p class="mute" style="font-size:12px;margin-bottom:0">${S.exercises.length} exercises · ${S.routines.length} routines · ${S.workouts.length} workouts</p>
   </div>
   <div style="height:20px"></div>`;
