@@ -68,7 +68,9 @@ nav{
   flex:0 0 auto;z-index:40;
   background:#101216;border-top:1px solid var(--line);
   display:grid;grid-template-columns:repeat(5,1fr);
-  padding-bottom:16px;
+  padding-bottom:calc(14px + env(safe-area-inset-bottom,0px));
+  margin-bottom:calc(-1 * env(safe-area-inset-bottom,0px));
+  box-shadow:0 40px 0 40px #101216;
 }
 nav button{padding:7px 2px 6px;font-size:10px;color:var(--mute);font-family:var(--f-mono);letter-spacing:.08em;text-transform:uppercase}
 nav button .ic{display:block;font-size:16px;margin-bottom:1px;line-height:1.1;font-family:var(--f-disp)}
@@ -435,6 +437,7 @@ function skipRest(){clearInterval(restInt);document.getElementById("rest").style
 /* ---------- views ---------- */
 function go(v){view=v;render();const w=document.getElementById("app");if(w)w.scrollTop=0;}
 function render(){
+  if(view==="settings") setTimeout(diagnostics,0);
   if(!loaded){document.getElementById("app").innerHTML='<div class="empty">Loading…</div>';return;}
   const nav=[["today","▲","Train"],["routines","▤","Routines"],["history","▦","History"],["progress","◪","Progress"],["settings","⚙","You"]];
   document.getElementById("nav").innerHTML=nav.map(([k,i,l])=>
@@ -831,10 +834,30 @@ function vSettings(){
     <button class="btn wide" onclick="restoreSheet()">Restore from a backup file</button>
     <button class="btn wide" style="margin-top:8px" onclick="exportCSV()">Export workouts as CSV</button>
     <button class="btn wide" style="margin-top:8px" onclick="importSheet()">Import a Hevy CSV</button>
-    <p class="mute mono" style="font-size:11px;margin-bottom:4px">Build 6 · fixed nav clearance</p>
+    <p class="mute mono" style="font-size:11px;margin-bottom:4px">Build 7 · nav bleed</p>
+    <div class="mono mute" style="font-size:11px;line-height:1.6" id="diag"></div>
     <p class="mute" style="font-size:12px;margin-bottom:0">${S.exercises.length} exercises · ${S.routines.length} routines · ${S.workouts.length} workouts</p>
   </div>
   <div style="height:20px"></div>`;
+}
+function diagnostics(){
+  const el=document.getElementById("diag"); if(!el) return;
+  const cs=getComputedStyle(document.documentElement);
+  const nav=document.getElementById("nav").getBoundingClientRect();
+  const probe=document.createElement("div");
+  probe.style.cssText="position:fixed;bottom:0;height:env(safe-area-inset-bottom,0px);visibility:hidden";
+  document.body.appendChild(probe);
+  const inset=probe.getBoundingClientRect().height;
+  probe.remove();
+  el.innerHTML=[
+    "screen "+window.screen.width+"\u00d7"+window.screen.height,
+    "innerHeight "+window.innerHeight,
+    "visualViewport "+Math.round((window.visualViewport&&window.visualViewport.height)||0),
+    "shell --app-h "+cs.getPropertyValue("--app-h").trim(),
+    "safe-area-bottom "+Math.round(inset)+"px",
+    "nav bottom edge "+Math.round(nav.bottom),
+    "standalone "+(window.navigator.standalone?"yes":"no")
+  ].join("<br>");
 }
 function logBody(){
   const v=parseFloat(document.getElementById("bw").value);
