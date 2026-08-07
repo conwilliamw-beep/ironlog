@@ -1161,7 +1161,7 @@ function vSettings(){
     <button class="btn wide" style="margin-top:8px" onclick="exportCSV()">Export workouts as CSV</button>
     <button class="btn wide" style="margin-top:8px" onclick="importSheet()">Import Hevy workouts CSV</button>
     <button class="btn wide" style="margin-top:8px" onclick="measureSheet()">Import Hevy measurements CSV</button>
-    <p class="mute mono" style="font-size:11px;margin-bottom:4px">Build 26 · local dates</p>
+    <p class="mute mono" style="font-size:11px;margin-bottom:4px">Build 28</p>
     <p class="mute" style="font-size:12px;margin-bottom:0">${S.exercises.length} exercises · ${S.routines.length} routines · ${S.workouts.length} workouts</p>
   </div>
   <div style="height:20px"></div>`;
@@ -1368,41 +1368,42 @@ function runImport(){
   toast(`${added.length} workouts, ${n} sets, ${newEx} new exercises`);
 }
 
-/* ---- built-in programme: name | sets | topReps | lowReps | restSec | incKg ---- */
+/* ---- programme: name | sets | topReps | lowReps | restSec | incKg | dropSets ---- */
 const PROGRAM=[
  {day:"Push",items:[
-  ["Incline Bench Press",4,12,8,150,2],
-  ["Incline Chest Press",3,8,6,180,5],
-  ["Chest Dip",3,12,8,120,2.5],
+  ["Incline Bench Press",4,12,8,120,2],
+  ["Incline Chest Press",4,8,6,150,5],
+  ["Chest Dip",4,12,8,120,2.5],
   ["Shoulder Press",4,12,8,120,2],
-  ["Lateral Raise",3,15,12,60,2],
-  ["Triceps Pushdown",3,12,8,75,2.5]]},
+  ["Lateral Raise",4,15,12,60,2],
+  ["Triceps Pushdown",3,12,8,75,2.5,1]]},
  {day:"Pull",items:[
-  ["T Bar Row",4,8,6,180,2.5],
-  ["Lat Pulldown",3,10,8,150,5],
-  ["Seated Cable Row",3,12,8,120,5],
-  ["Face Pull",3,15,12,60,2.5],
-  ["Rear Delt Reverse Fly",3,15,12,60,5],
-  ["Hammer Curl",3,12,8,75,2],
-  ["Bicep Curl",2,12,8,60,2.5]]},
+  ["T Bar Row",4,8,6,150,2.5],
+  ["Lat Pulldown",4,10,8,120,5],
+  ["Seated Cable Row",4,12,8,120,5],
+  ["Face Pull",4,15,12,60,2.5],
+  ["Rear Delt Reverse Fly",4,15,12,60,5],
+  ["Hammer Curl",4,12,8,75,2],
+  ["Bicep Curl",2,12,8,60,2.5,1]]},
  {day:"Legs + Chest",items:[
-  ["Hack Squat",4,10,8,210,5],
-  ["Romanian Deadlift",3,10,8,180,5],
-  ["Lying Leg Curl",3,12,8,120,5],
-  ["Leg Extension",3,12,8,120,5],
+  ["Hack Squat",4,10,8,180,5],
+  ["Romanian Deadlift",4,10,8,150,5],
+  ["Lying Leg Curl",4,12,8,120,5],
+  ["Leg Extension",4,12,8,120,5],
   ["Calf Press",4,12,8,75,5],
-  ["Incline Chest Fly",3,12,8,75,2],
-  ["Hanging Leg Raise",3,15,12,60,0]]}
+  ["Incline Chest Fly",4,12,8,75,2],
+  ["Hanging Leg Raise",4,15,12,60,0]]}
 ];
 function loadProgram(){
   if(!confirm("Add the three PPL routines and set rest, increments and rep ranges on every exercise?")) return;
   let made=0;
   PROGRAM.forEach(d=>{
-    const items=d.items.map(([name,sets,top,low,rest,inc])=>{
+    const items=d.items.map(([name,sets,top,low,rest,inc,drops])=>{
       const e=matchExercise(name);
       e.rest=rest; e.inc=inc; e.repLow=low;
-      return {exerciseId:e.id,superset:"",
-        sets:Array.from({length:sets},()=>({type:"normal",reps:top}))};
+      const list=Array.from({length:sets},()=>({type:"normal",reps:top}));
+      for(let i=0;i<(drops||0);i++) list.push({type:"drop",reps:top});
+      return {exerciseId:e.id,superset:"",sets:list};
     });
     S.routines=S.routines.filter(r=>r.name!==d.day);
     S.routines.push({id:uid(),name:d.day,items});
