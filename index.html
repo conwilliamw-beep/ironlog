@@ -290,7 +290,9 @@ let S={exercises:[],routines:[],workouts:[],body:[],settings:{restSec:120,unit:"
 let view="today", loaded=false;
 
 const uid=()=>Math.random().toString(36).slice(2,9);
-const todayISO=()=>new Date().toISOString().slice(0,10);
+const isoLocal=d=>{const x=(d instanceof Date)?d:new Date(d);
+  return x.getFullYear()+"-"+String(x.getMonth()+1).padStart(2,"0")+"-"+String(x.getDate()).padStart(2,"0");};
+const todayISO=()=>isoLocal(new Date());
 const KG=w=>w, LB2KG=w=>w*0.45359237, KG2LB=w=>w/0.45359237;
 
 /* ---- IndexedDB: local, offline, survives app updates ---- */
@@ -470,21 +472,67 @@ function finishWorkout(){
 }
 
 /* ---------- rest timer ---------- */
-let restEnd=0,restInt=null;
+let restEnd=0,restInt=null,audioCtx=null,wakeLock=null,restWarned=false;
+function unlockAudio(){
+  try{
+    if(!audioCtx){ const AC=window.AudioContext||window.webkitAudioContext; if(AC) audioCtx=new AC(); }
+    if(audioCtx&&audioCtx.state==="suspended") audioCtx.resume();
+  }catch(e){}
+}
+document.addEventListener("touchstart",unlockAudio,{once:false,passive:true});
+document.addEventListener("click",unlockAudio,{passive:true});
+
+function beep(times){
+  if(S.settings.sound===false) return;
+  unlockAudio();
+  if(!audioCtx) return;
+  const now=audioCtx.currentTime;
+  for(let i=0;i<times;i++){
+    const o=audioCtx.createOscillator(), g=audioCtx.createGain();
+    const t=now+i*0.28;
+    o.type="sine"; o.frequency.setValueAtTime(i===times-1?1100:820,t);
+    g.gain.setValueAtTime(0.0001,t);
+    g.gain.exponentialRampToValueAtTime(0.35,t+0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001,t+0.22);
+    o.connect(g); g.connect(audioCtx.destination);
+    o.start(t); o.stop(t+0.24);
+  }
+}
+function buzz(pattern){
+  if(S.settings.vibrate===false) return;
+  if(navigator.vibrate) navigator.vibrate(pattern);
+}
+async function keepAwake(on){
+  try{
+    if(on&&"wakeLock" in navigator&&!wakeLock){ wakeLock=await navigator.wakeLock.request("screen"); wakeLock.addEventListener("release",()=>{wakeLock=null;}); }
+    else if(!on&&wakeLock){ await wakeLock.release(); wakeLock=null; }
+  }catch(e){}
+}
+document.addEventListener("visibilitychange",()=>{
+  if(document.visibilityState==="visible"){
+    if(restEnd>Date.now()) keepAwake(true);
+    if(restEnd&&Date.now()>=restEnd) skipRest();
+  }
+});
 function startRest(sec,label){
   sec=(sec==null?S.settings.restSec:sec)||0; if(!sec) return;
-  document.getElementById("restlabel").textContent=label?("Rest · "+label):"Rest";
-  restEnd=Date.now()+sec*1000;
+  document.getElementById("restlabel").textContent=label?("Rest \u00b7 "+label):"Rest";
+  restEnd=Date.now()+sec*1000; restWarned=false;
   document.getElementById("rest").style.display="block";
+  keepAwake(true);
   clearInterval(restInt);
   restInt=setInterval(()=>{
     const left=Math.max(0,Math.round((restEnd-Date.now())/1000));
     document.getElementById("resttime").textContent=Math.floor(left/60)+":"+String(left%60).padStart(2,"0");
-    if(left<=0){ skipRest(); if(navigator.vibrate)navigator.vibrate([120,60,120]); toast("Rest done"); }
+    if(left<=10&&left>0&&!restWarned){ restWarned=true; beep(1); buzz(60); }
+    if(left<=0){ skipRest(); beep(3); buzz([160,90,160,90,260]); toast("Rest done \u2014 next set"); }
   },250);
 }
-function skipRest(){clearInterval(restInt);document.getElementById("rest").style.display="none";}
-
+function skipRest(){
+  clearInterval(restInt); restEnd=0;
+  const el=document.getElementById("rest"); if(el) el.style.display="none";
+  keepAwake(false);
+}
 /* ---------- views ---------- */
 function go(v){view=v;render();const w=document.getElementById("app");if(w)w.scrollTop=0;}
 function render(){
@@ -738,20 +786,24 @@ function addCustom(name){
 }
 
 /* --- HISTORY --- */
-function daysAgo(d){return Math.floor((new Date(todayISO())-new Date(d))/86400000);}
+function daysAgo(d){
+  const p=String(d).split("-"), t=todayISO().split("-");
+  const a=new Date(+t[0],+t[1]-1,+t[2]), b=new Date(+p[0],+p[1]-1,+p[2]);
+  return Math.round((a-b)/86400000);
+}
 function streakDays(){
   const weeks=new Set(S.workouts.map(w=>weekKey(w.date)));
   let n=0,d=new Date();
-  for(;;){ const k=weekKey(d.toISOString().slice(0,10));
-    if(weeks.has(k)) n++; else if(n>0||daysAgo(d.toISOString().slice(0,10))>6) break;
+  for(;;){ const k=weekKey(isoLocal(d));
+    if(weeks.has(k)) n++; else if(n>0||daysAgo(isoLocal(d))>6) break;
     d.setDate(d.getDate()-7); if(n>520)break; }
   return n;
 }
-function weekKey(iso){const d=new Date(iso);const day=(d.getDay()+6)%7;d.setDate(d.getDate()-day);return d.toISOString().slice(0,10);}
+function weekKey(iso){const p=iso.split("-");const d=new Date(+p[0],+p[1]-1,+p[2]);const day=(d.getDay()+6)%7;d.setDate(d.getDate()-day);return isoLocal(d);}
 let calMonth=null;
 function shiftMonth(n){
-  const d=new Date(calMonth+"-01"); d.setMonth(d.getMonth()+n);
-  calMonth=d.toISOString().slice(0,7); render();
+  const p=calMonth.split("-"); const d=new Date(+p[0],+p[1]-1,1); d.setMonth(d.getMonth()+n);
+  calMonth=isoLocal(d).slice(0,7); render();
 }
 function vHistory(){
   if(!calMonth) calMonth=todayISO().slice(0,7);
@@ -837,7 +889,7 @@ function editWorkout(id){
 function editField(id,f,v){
   const w=S.workouts.find(x=>x.id===id); if(!w) return;
   if(f==="date"&&!v) return;
-  w[f]=v; if(f==="date") w.ts=new Date(v).getTime();
+  w[f]=v; if(f==="date") w.ts=new Date(v+"T00:00:00").getTime();
   save();
 }
 function editSet(id,ei,si,f,v){
@@ -871,7 +923,7 @@ function setLiftWin(d){liftWin=d;render();}
 function setBodyWin(d){bodyWin=d;render();}
 function muscleLoad(days){
   const cut=new Date(); cut.setDate(cut.getDate()-days);
-  const iso=cut.toISOString().slice(0,10);
+  const iso=isoLocal(cut);
   const sets={}, vol={};
   S.workouts.filter(w=>w.date>=iso).forEach(w=>w.entries.forEach(en=>{
     const e=ex(en.exerciseId);
@@ -889,9 +941,9 @@ function muscleLoad(days){
 }
 function weekBounds(offset){
   const d=new Date(todayISO()); d.setDate(d.getDate()-((d.getDay()+6)%7)-7*offset);
-  const start=d.toISOString().slice(0,10);
+  const start=isoLocal(d);
   const e=new Date(d); e.setDate(e.getDate()+6);
-  return {start,end:e.toISOString().slice(0,10)};
+  return {start,end:isoLocal(e)};
 }
 function weekStats(offset){
   const {start,end}=weekBounds(offset);
@@ -1079,6 +1131,12 @@ function vSettings(){
     <label class="fl">Fallback rest timer (seconds, 0 turns it off)</label>
     <input inputmode="numeric" value="${S.settings.restSec}" onchange="S.settings.restSec=parseInt(this.value)||0;save()">
     <p class="mute" style="font-size:12px">Only used by exercises with no rest time of their own. Set the real ones per exercise from the ••• menu mid-workout.</p>
+    <label class="fl">Timer alert</label>
+    <div class="row" style="gap:8px">
+      <button class="btn ${S.settings.sound===false?"":"pri"}" style="flex:1" onclick="S.settings.sound=(S.settings.sound===false);save();render();if(S.settings.sound!==false)beep(1)">Sound ${S.settings.sound===false?"off":"on"}</button>
+      <button class="btn ${S.settings.vibrate===false?"":"pri"}" style="flex:1" onclick="S.settings.vibrate=(S.settings.vibrate===false);save();render();if(S.settings.vibrate!==false)buzz(80)">Vibrate ${S.settings.vibrate===false?"off":"on"}</button>
+    </div>
+    <p class="mute" style="font-size:12px">Alerts fire at 10 seconds remaining and at zero, and only while Ironlog is open on screen. iOS suspends web apps in the background, so the timer can't wake a locked phone.</p>
     <label class="fl">Default unit for new custom exercises</label>
     <select onchange="S.settings.unit=this.value;save()">
       <option value="kg" ${S.settings.unit==="kg"?"selected":""}>Kilograms</option>
@@ -1103,7 +1161,7 @@ function vSettings(){
     <button class="btn wide" style="margin-top:8px" onclick="exportCSV()">Export workouts as CSV</button>
     <button class="btn wide" style="margin-top:8px" onclick="importSheet()">Import Hevy workouts CSV</button>
     <button class="btn wide" style="margin-top:8px" onclick="measureSheet()">Import Hevy measurements CSV</button>
-    <p class="mute mono" style="font-size:11px;margin-bottom:4px">Build 24</p>
+    <p class="mute mono" style="font-size:11px;margin-bottom:4px">Build 26 · local dates</p>
     <p class="mute" style="font-size:12px;margin-bottom:0">${S.exercises.length} exercises · ${S.routines.length} routines · ${S.workouts.length} workouts</p>
   </div>
   <div style="height:20px"></div>`;
@@ -1238,11 +1296,10 @@ function hevyDate(str){
   const M={jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11};
   const m=str.match(/([A-Za-z]{3})[a-z]*\s+(\d{1,2}),?\s+(\d{4})/);
   if(m && M[m[1].toLowerCase()]!=null){
-    const d=new Date(Date.UTC(+m[3],M[m[1].toLowerCase()],+m[2]));
-    return d.toISOString().slice(0,10);
+    return isoLocal(new Date(+m[3],M[m[1].toLowerCase()],+m[2]));
   }
   const d=new Date(str);
-  return isNaN(d)?null:d.toISOString().slice(0,10);
+  return isNaN(d)?null:isoLocal(d);
 }
 function cleanName(n){
   return n.replace(/\s*\([^)]*\)\s*/g," ").replace(/\s+-\s+.*$/,"").replace(/\s+/g," ").trim();
@@ -1291,7 +1348,7 @@ function runImport(){
       let dur=0;
       if(cEnd>=0&&r[cEnd]){const a=new Date(r[cD]),b=new Date(r[cEnd]);
         if(!isNaN(a)&&!isNaN(b)) dur=Math.max(0,Math.round((b-a)/1000));}
-      byWorkout[k]={id:uid(),date,ts:new Date(date).getTime(),name,entries:[],durationSec:dur,imported:true};
+      byWorkout[k]={id:uid(),date,ts:new Date(date+"T00:00:00").getTime(),name,entries:[],durationSec:dur,imported:true};
     }
     const exName=(r[cE]||"").trim();if(!exName)return;
     const e=matchExercise(exName);
