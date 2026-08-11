@@ -448,7 +448,8 @@ function startWorkout(routineId){
     });
     return {exerciseId:it.exerciseId,superset:it.superset||"",sets,notes:""};
   });
-  S.active={id:uid(),date:todayISO(),ts:Date.now(),name:r?r.name:"Quick workout",routineId:routineId||null,entries,notes:"",start:Date.now()};
+  S.active={id:uid(),date:todayISO(),ts:Date.now(),name:r?r.name:"Quick workout",routineId:routineId||null,entries,notes:"",start:Date.now(),
+    cooldown:(r&&r.cooldown?r.cooldown:[]).map(c=>({...c,done:false}))};
   save(); go("today");
   if(entries.some(e=>e.sets.some(s=>s.weight!=="")))
     toast("Pre-filled \u2014 reps climb, then weight jumps");
@@ -586,12 +587,33 @@ function vActive(){
   </div>
   ${a.entries.map((en,ei)=>exBlock(en,ei)).join("")}
   <button class="btn wide" onclick="pickExercise(id=>{S.active.entries.push({exerciseId:id,superset:'',sets:[{type:'normal',weight:'',reps:'',done:false}],notes:''});save();closeSheet();render();})">+ Add exercise</button>
+  ${(a.cooldown&&a.cooldown.length)?`
+  <div class="exblock" style="margin-top:14px;border-color:var(--brass-dim)">
+    <div class="exhead" style="background:#221c10">
+      <div><span class="nm" style="color:var(--brass)">Cool-down</span>
+        <div class="mute mono" style="font-size:10.5px;margin-top:2px">5 minutes \u00b7 ${a.cooldown.filter(c=>c.done).length}/${a.cooldown.length} done</div></div>
+      <button class="btn sm" onclick="S.active.cooldown.forEach(c=>c.done=true);save();render()">All done</button>
+    </div>
+    ${a.cooldown.map((c,ci)=>`<div style="padding:9px 12px;border-top:1px solid #22262e;display:flex;gap:10px;align-items:flex-start">
+      <button class="chk ${c.done?"on":""}" style="flex:0 0 auto" onclick="toggleCool(${ci})">\u2713</button>
+      <div style="flex:1">
+        <div style="font-weight:600;font-size:14px">${esc(c.name)}</div>
+        <div class="mute" style="font-size:11.5px;margin-top:2px">${esc(c.note||"")}</div>
+      </div>
+      <button class="btn sm" style="flex:0 0 auto" onclick="startRest(${c.secs},'${esc(c.name).replace(/'/g,"")}')">${Math.round(c.secs)}s</button>
+    </div>`).join("")}
+  </div>`:""}
   <button class="btn wide danger" style="margin:8px 0 20px" onclick="if(confirm('Discard this workout?')){S.active=null;save();render();}">Discard workout</button>`;
 }
 
 function prevSetsFor(exId){
   const p=lastSessionFor(exId,S.active?S.active.id:null);
   return p? p.en.sets.filter(s=>s.done) : [];
+}
+function toggleCool(ci){
+  const c=S.active.cooldown[ci]; c.done=!c.done;
+  if(c.done) startRest(c.secs,c.name);
+  save(); render();
 }
 function exBlock(en,ei){
   const e=ex(en.exerciseId), best=bestFor(en.exerciseId);
@@ -1161,7 +1183,7 @@ function vSettings(){
     <button class="btn wide" style="margin-top:8px" onclick="exportCSV()">Export workouts as CSV</button>
     <button class="btn wide" style="margin-top:8px" onclick="importSheet()">Import Hevy workouts CSV</button>
     <button class="btn wide" style="margin-top:8px" onclick="measureSheet()">Import Hevy measurements CSV</button>
-    <p class="mute mono" style="font-size:11px;margin-bottom:4px">Build 28</p>
+    <p class="mute mono" style="font-size:11px;margin-bottom:4px">Build 29</p>
     <p class="mute" style="font-size:12px;margin-bottom:0">${S.exercises.length} exercises · ${S.routines.length} routines · ${S.workouts.length} workouts</p>
   </div>
   <div style="height:20px"></div>`;
@@ -1394,6 +1416,26 @@ const PROGRAM=[
   ["Incline Chest Fly",4,12,8,75,2],
   ["Hanging Leg Raise",4,15,12,60,0]]}
 ];
+const COOLDOWNS={
+ "Push":[
+  ["Doorway Pec Stretch",60,"Forearm on the frame at shoulder height, step through. Chest open, no shrug."],
+  ["Overhead Triceps Stretch",60,"30s each arm. Elbow high, gently pull with the other hand."],
+  ["Cross-Body Shoulder Stretch",60,"30s each. Pull the arm across at chest height, keep the shoulder down."],
+  ["Thoracic Extension over Bench",60,"Elbows on a bench, sink the chest. Opens what pressing tightens."],
+  ["Behind-the-Back Shoulder Stretch",60,"Hands clasped behind you, lift and open across the front delts."]],
+ "Pull":[
+  ["Kneeling Lat Stretch",60,"30s each. Hands on a bench, sink the hips back, reach long through one side."],
+  ["Wall Biceps Stretch",60,"30s each. Palm flat on the wall behind you, rotate away."],
+  ["Cross-Body Rear Delt Stretch",60,"30s each. Same position as the push version, focus on the back of the shoulder."],
+  ["Forearm Flexor Stretch",60,"30s each. Arm straight, fingers back, gentle pressure. Grip takes a beating on rows."],
+  ["Seated Thoracic Rotation",60,"30s each. Sit tall, rotate and hold, breathe into the stretch."]],
+ "Legs + Chest":[
+  ["Couch Stretch",60,"30s each. Rear foot elevated, squeeze the glute. Hip flexors after hack squats."],
+  ["Seated Hamstring Stretch",60,"30s each. Hinge from the hip, flat back \u2014 don't round to reach further."],
+  ["Standing Quad Stretch",60,"30s each. Knee down and back, hips forward, don't arch the lower back."],
+  ["Figure-4 Glute Stretch",60,"30s each. Ankle over the opposite knee, sit back into it."],
+  ["Wall Calf Stretch",60,"30s each. Back leg straight, heel down, lean into the wall."]]
+};
 function loadProgram(){
   if(!confirm("Add the three PPL routines and set rest, increments and rep ranges on every exercise?")) return;
   let made=0;
@@ -1406,7 +1448,7 @@ function loadProgram(){
       return {exerciseId:e.id,superset:"",sets:list};
     });
     S.routines=S.routines.filter(r=>r.name!==d.day);
-    S.routines.push({id:uid(),name:d.day,items});
+    S.routines.push({id:uid(),name:d.day,items,cooldown:(COOLDOWNS[d.day]||[]).map(([name,secs,note])=>({name,secs,note}))});
     made++;
   });
   save(); closeSheet(); go("routines");
