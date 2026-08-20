@@ -29,7 +29,7 @@ body{
   width:auto;height:100dvh;
   box-sizing:border-box;
   display:flex;flex-direction:column;
-  background:#101216;
+  background:var(--nav,#101216);
 }
 body{
   background:var(--ink);color:var(--chalk);
@@ -67,7 +67,7 @@ label.fl{display:block;margin:8px 0 4px;font-size:12px;color:var(--mute)}
 /* nav */
 nav{
   flex:0 0 auto;z-index:40;
-  background:#101216;border-top:1px solid var(--line);
+  background:var(--nav,#101216);border-top:1px solid var(--line);
   display:grid;grid-template-columns:repeat(5,1fr);
   padding-bottom:15px;
 }
@@ -97,8 +97,10 @@ nav button.on{color:var(--brass)}
 .colhead span{text-align:center}
 /* rest bar */
 #rest{flex:0 0 auto;z-index:39;display:none}
-#rest .inner{max-width:560px;margin:0 auto;background:var(--brass);color:#1a1408;display:flex;justify-content:space-between;align-items:center;padding:8px 14px;font-weight:700}
-#rest .t{font-family:var(--f-mono);font-size:19px}
+#rest .inner{max-width:560px;margin:0 auto;background:var(--brass);color:#1a1408;display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 12px;font-weight:700}
+#rest .t{font-family:var(--f-mono);font-size:22px;line-height:1.1}
+.restadj{background:rgba(0,0,0,.18);border:none;border-radius:8px;padding:9px 11px;font-weight:800;font-size:14px;font-family:var(--f-mono);color:#1a1408;flex:0 0 auto}
+.restadj:active{background:rgba(0,0,0,.32)}
 /* heatmap */
 .cal{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
 .cal .dow{font-family:var(--f-mono);font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--mute);text-align:center;padding-bottom:2px}
@@ -136,11 +138,34 @@ nav button.on{color:var(--brass)}
 .tabs button.on{color:var(--brass);border-color:var(--brass-dim);background:#221c10}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:84px;background:var(--chalk);color:var(--ink);padding:9px 16px;border-radius:99px;font-weight:700;font-size:13px;z-index:80;opacity:0;transition:opacity .2s;pointer-events:none}
 .toast.on{opacity:1}
+
+/* ---- themes ---- */
+body[data-theme="steel"]{--ink:#12151a;--ink-2:#1a1f26;--ink-3:#232a33;--line:#333c48;--chalk:#e6ebf2;--mute:#8b96a5;--brass:#5b9dd9;--brass-dim:#2f5a7d;--good:#4fa87d;--warn:#c9705e;}
+body[data-theme="moss"]{--ink:#12170f;--ink-2:#1a2016;--ink-3:#242c1e;--line:#343d2c;--chalk:#e9ece2;--mute:#8d9880;--brass:#8fbf5a;--brass-dim:#4e6b31;--good:#63b06f;--warn:#c4795a;}
+body[data-theme="ember"]{--ink:#17110f;--ink-2:#1f1815;--ink-3:#2a201c;--line:#3d2f28;--chalk:#f0e7e1;--mute:#a08d83;--brass:#e0663c;--brass-dim:#8a3c20;--good:#5fb07a;--warn:#d4564a;}
+body[data-theme="paper"]{--ink:#f4f1ea;--ink-2:#ffffff;--ink-3:#e8e3d8;--line:#d2cbbc;--chalk:#22201c;--mute:#7b7466;--brass:#9a6b1f;--brass-dim:#c9ad76;--good:#3d7d54;--warn:#a8442f;}
+body[data-theme="mono"]{--ink:#0d0d0d;--ink-2:#161616;--ink-3:#1f1f1f;--line:#333;--chalk:#f0f0f0;--mute:#8a8a8a;--brass:#f0f0f0;--brass-dim:#555;--good:#9a9a9a;--warn:#c47d6e;}
+body[data-theme="paper"]{--nav:#e8e3d8}
+
+body[data-theme="steel"]{--nav:#0d1016}
+body[data-theme="moss"]{--nav:#0d110b}
+body[data-theme="ember"]{--nav:#120d0b}
+body[data-theme="mono"]{--nav:#080808}
+body[data-theme="paper"] .setrow.done{background:#e6efe6}
+body[data-theme="paper"] .chk.on{color:#fff}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
 
 <div class="wrap" id="app"></div>
-<div id="rest"><div class="inner"><span id="restlabel">Rest</span><span class="t" id="resttime">0:00</span><button class="btn sm" onclick="skipRest()">Skip</button></div></div>
+<div id="rest"><div class="inner">
+  <button class="restadj" onclick="adjustRest(-10)">−10</button>
+  <div style="text-align:center;flex:1;min-width:0">
+    <div id="restlabel" style="font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Rest</div>
+    <div class="t" id="resttime">0:00</div>
+  </div>
+  <button class="restadj" onclick="adjustRest(10)">+10</button>
+  <button class="btn sm" onclick="skipRest()">Skip</button>
+</div></div>
 <nav id="nav"></nav>
 <div class="sheet" id="sheet"><div class="panel" id="sheetbody"></div></div>
 <div class="toast" id="toast"></div>
@@ -343,6 +368,7 @@ async function load(){
   if(!S.settings) S.settings={restSec:120,unit:"kg"};
   S.exercises.forEach(e=>{ if(e.rest==null) e.rest=defaultRest(e.name,e.primary||""); });
   loaded=true;
+  applyTheme();
 }
 let saveTimer=null;
 function save(){
@@ -352,6 +378,15 @@ function save(){
     catch(e){ toast("Couldn't save to this device"); }
   },250);
 }
+const THEMES=[["iron","Iron"],["steel","Steel"],["moss","Moss"],["ember","Ember"],["mono","Mono"],["paper","Paper"]];
+function applyTheme(){
+  const t=(S.settings&&S.settings.theme)||"iron";
+  if(t==="iron") document.body.removeAttribute("data-theme");
+  else document.body.setAttribute("data-theme",t);
+  const meta=document.querySelector('meta[name="theme-color"]');
+  if(meta) meta.setAttribute("content", getComputedStyle(document.body).backgroundColor||"#101216");
+}
+function setTheme(t){ S.settings.theme=t; save(); applyTheme(); render(); }
 function toast(m){const t=document.getElementById("toast");t.textContent=m;t.classList.add("on");setTimeout(()=>t.classList.remove("on"),1900);}
 const ex=id=>S.exercises.find(e=>e.id===id)||{name:"Unknown",unit:"kg",inc:2.5,muscles:[],primary:""};
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -459,7 +494,8 @@ function finishWorkout(){
   a.entries.forEach(en=>en.sets=en.sets.filter(s=>s.done));
   a.entries=a.entries.filter(en=>en.sets.length);
   if(!a.entries.length){ if(!confirm("No sets logged. Discard this workout?")) return; S.active=null; save(); return render(); }
-  a.durationSec=Math.round((Date.now()-a.start)/1000);
+  const auto=Math.round((Date.now()-a.start)/1000);
+  a.durationSec=auto;
   const prs=[];
   a.entries.forEach(en=>{
     const before=bestFor(en.exerciseId);
@@ -528,6 +564,14 @@ function startRest(sec,label){
     if(left<=10&&left>0&&!restWarned){ restWarned=true; beep(1); buzz(60); }
     if(left<=0){ skipRest(); beep(3); buzz([160,90,160,90,260]); toast("Rest done \u2014 next set"); }
   },250);
+}
+function adjustRest(delta){
+  if(!restEnd) return;
+  restEnd=Math.max(Date.now()+1000, restEnd+delta*1000);
+  if(delta>0) restWarned=false;
+  const left=Math.max(0,Math.round((restEnd-Date.now())/1000));
+  document.getElementById("resttime").textContent=Math.floor(left/60)+":"+String(left%60).padStart(2,"0");
+  buzz(25);
 }
 function skipRest(){
   clearInterval(restInt); restEnd=0;
@@ -687,8 +731,12 @@ function setField(ei,si,f,v){
 function toggleSet(ei,si){
   const s=S.active.entries[ei].sets[si];
   s.done=!s.done; s.ghost=false;
-  if(s.done){ if(s.weight==="")s.weight=0; if(s.reps==="")s.reps=0; const _e=ex(S.active.entries[ei].exerciseId);
-    if(s.type==="drop") startRest(15,"drop set");
+  if(s.done){ if(s.weight==="")s.weight=0; if(s.reps==="")s.reps=0; const _en=S.active.entries[ei], _e=ex(_en.exerciseId);
+    if(s.type==="drop"){
+      const nxt=_en.sets[si+1];
+      if(nxt&&nxt.type==="drop"&&!nxt.done) startRest(15,"next drop");
+      else startRest(_e.rest,_e.name);
+    }
     else if(s.type!=="warmup") startRest(_e.rest,_e.name); }
   save(); render();
 }
@@ -871,6 +919,25 @@ function vHistory(){
   </div>`).join(""):`<div class="empty"><div class="big-e">▦</div>No workouts logged yet.</div>`}
   <div style="height:20px"></div>`;
 }
+function durationSheet(id){
+  const w=S.workouts.find(x=>x.id===id); if(!w) return;
+  const mins=Math.round((w.durationSec||0)/60);
+  openSheet(`<h2>Session length</h2>
+  <p class="mute" style="font-size:13px">Timed at ${mins} minutes. If you forgot to hit finish, correct it here \u2014 it feeds your monthly hours and session averages.</p>
+  <label class="fl">Minutes</label>
+  <input id="durmin" inputmode="numeric" value="${mins}">
+  <div class="row" style="gap:6px;flex-wrap:wrap;margin-top:8px">
+    ${[45,60,75,90].map(v=>`<button class="btn sm" onclick="document.getElementById('durmin').value=${v}">${v}m</button>`).join("")}
+  </div>
+  <button class="btn wide pri" style="margin-top:12px" onclick="saveDuration('${id}')">Save</button>
+  <button class="btn wide" style="margin-top:8px" onclick="closeSheet()">Keep ${mins} min</button>`);
+}
+function saveDuration(id){
+  const w=S.workouts.find(x=>x.id===id); if(!w) return closeSheet();
+  const v=parseInt(document.getElementById("durmin").value);
+  if(!isNaN(v)&&v>0) w.durationSec=v*60;
+  save(); closeSheet(); render(); toast("Duration updated");
+}
 function showWorkout(id){
   const w=S.workouts.find(x=>x.id===id);if(!w)return;
   openSheet(`<div class="between"><h2>${esc(w.name)}</h2><span class="mute mono" style="font-size:12px">${w.date}</span></div>
@@ -894,6 +961,8 @@ function editWorkout(id){
   <input value="${esc(w.name)}" onchange="editField('${id}','name',this.value)">
   <label class="fl">Date</label>
   <input type="date" value="${w.date}" onchange="editField('${id}','date',this.value)">
+  <label class="fl">Duration (minutes)</label>
+  <input inputmode="numeric" value="${Math.round((w.durationSec||0)/60)}" onchange="editDuration('${id}',this.value)">
   ${w.entries.map((en,ei)=>{const e=ex(en.exerciseId);return`
     <div class="exblock" style="margin-top:10px">
       <div class="exhead"><div><span class="nm">${esc(e.name)}</span></div>
@@ -907,6 +976,11 @@ function editWorkout(id){
         <button class="chk" onclick="editRemoveSet('${id}',${ei},${si})">\u2715</button></div>`).join("")}
     </div>`}).join("")}
   <button class="btn wide pri" style="margin-top:12px" onclick="closeSheet();render();toast('Workout updated')">Done</button>`);
+}
+function editDuration(id,v){
+  const w=S.workouts.find(x=>x.id===id); if(!w) return;
+  const n=parseInt(v); if(!isNaN(n)&&n>=0) w.durationSec=n*60;
+  save();
 }
 function editField(id,f,v){
   const w=S.workouts.find(x=>x.id===id); if(!w) return;
@@ -1022,6 +1096,94 @@ function vWeek(){
   </div>
   <div style="height:20px"></div>`;
 }
+let repMonth=null;
+function shiftRepMonth(n){
+  const p=(repMonth||todayISO().slice(0,7)).split("-");
+  const d=new Date(+p[0],+p[1]-1,1); d.setMonth(d.getMonth()+n);
+  const k=isoLocal(d).slice(0,7);
+  if(k>todayISO().slice(0,7)) return;
+  repMonth=k; render();
+}
+function monthStats(key){
+  const ws=S.workouts.filter(w=>w.date.startsWith(key));
+  let sets=0,vol=0,mins=0; const mus={},days=new Set(),perEx={};
+  ws.forEach(w=>{
+    days.add(w.date); mins+=Math.round((w.durationSec||0)/60);
+    w.entries.forEach(en=>{
+      const e=ex(en.exerciseId);
+      const work=en.sets.filter(s2=>s2.done&&s2.type!=="warmup");
+      sets+=work.length;
+      const v=work.reduce((n,s2)=>n+(+s2.weight||0)*(+s2.reps||0),0);
+      vol+=v;
+      perEx[e.name]=(perEx[e.name]||0)+work.length;
+      (e.muscles||[]).forEach((m,i)=>{ mus[m]=(mus[m]||0)+work.length*(i===0?1:0.5); });
+    });
+  });
+  return {key,sessions:ws.length,days:days.size,sets,vol:Math.round(vol),mins,mus,perEx,workouts:ws};
+}
+function prevMonthKey(key){
+  const p=key.split("-"); const d=new Date(+p[0],+p[1]-1,1); d.setMonth(d.getMonth()-1);
+  return isoLocal(d).slice(0,7);
+}
+function vMonth(){
+  if(!repMonth) repMonth=todayISO().slice(0,7);
+  const a=monthStats(repMonth), b=monthStats(prevMonthKey(repMonth));
+  const label=new Date(+repMonth.split("-")[0],+repMonth.split("-")[1]-1,1)
+    .toLocaleDateString("en-NZ",{month:"long",year:"numeric"});
+  const prevLabel=new Date(+prevMonthKey(repMonth).split("-")[0],+prevMonthKey(repMonth).split("-")[1]-1,1)
+    .toLocaleDateString("en-NZ",{month:"short"});
+  const delta=(now,then)=>{
+    if(!then) return now?`<span class="mono" style="font-size:11px;color:var(--good)">new</span>`:"";
+    const d=now-then, pct=Math.round(d/then*100);
+    return `<span class="mono" style="font-size:11px;color:${d>=0?"var(--good)":"var(--warn)"}">${d>=0?"+":""}${pct}%</span>`;
+  };
+  // PRs set this month
+  const prs=[];
+  a.workouts.forEach(w=>w.entries.forEach(en=>{
+    const h=exSessions(en.exerciseId);
+    const i=h.findIndex(x=>x.id===w.id);
+    if(i>0){
+      const sc=x=>Math.max.apply(null,x.sets.map(s2=>e1rm(+s2.weight||0,+s2.reps||0)).concat([0]));
+      if(sc(h[i])>Math.max.apply(null,h.slice(0,i).map(sc))) prs.push(ex(en.exerciseId).name);
+    }
+  }));
+  const mus=Object.entries(a.mus).sort((x,y)=>y[1]-x[1]);
+  const maxM=mus.length?mus[0][1]:1;
+  const isNow=repMonth===todayISO().slice(0,7);
+  return `<div class="calhead">
+    <button class="calnav" onclick="shiftRepMonth(-1)">\u2039</button>
+    <div style="text-align:center"><div class="m">${label}</div>
+      <div class="mute mono" style="font-size:10.5px">vs ${prevLabel}</div></div>
+    <button class="calnav" onclick="shiftRepMonth(1)" ${isNow?'style="opacity:.3"':""}>\u203a</button>
+  </div>
+  <div class="grid3" style="margin-bottom:8px">
+    <div class="stat"><div class="k">Sessions</div><div class="v">${a.sessions}</div><div>${delta(a.sessions,b.sessions)}</div></div>
+    <div class="stat"><div class="k">Sets</div><div class="v">${a.sets}</div><div>${delta(a.sets,b.sets)}</div></div>
+    <div class="stat"><div class="k">Hours</div><div class="v">${(a.mins/60).toFixed(1)}</div><div>${delta(a.mins,b.mins)}</div></div>
+  </div>
+  <div class="grid3" style="margin-bottom:12px">
+    <div class="stat"><div class="k">Volume</div><div class="v" style="font-size:15px">${a.vol.toLocaleString()}</div><div>${delta(a.vol,b.vol)}</div></div>
+    <div class="stat"><div class="k">Per week</div><div class="v">${(a.sessions/4.33).toFixed(1)}</div><div class="mono mute" style="font-size:10px">sessions</div></div>
+    <div class="stat"><div class="k">New bests</div><div class="v">${[...new Set(prs)].length}</div></div>
+  </div>
+  ${prs.length?`<div class="card"><div class="eyebrow" style="margin-bottom:8px">Lifts improved</div>
+    ${[...new Set(prs)].map(n=>`<div style="font-size:13.5px;padding:2px 0">\u2605 ${esc(n)}</div>`).join("")}</div>`:""}
+  <div class="card">
+    <div class="eyebrow" style="margin-bottom:10px">Sets per muscle</div>
+    ${mus.length?mus.map(([m,v])=>{
+      const pv=b.mus[m]||0;
+      return `<div style="margin-bottom:10px">
+        <div class="between"><span style="font-size:13.5px">${esc(m)}</span>
+          <span class="mono mute" style="font-size:11.5px">${v} ${pv?`<span style="opacity:.6">(${prevLabel} ${pv})</span>`:""}</span></div>
+        <div class="mbar"><i style="width:${Math.round(v/maxM*100)}%"></i></div></div>`;}).join("")
+     :`<div class="mute" style="font-size:13px">Nothing logged this month.</div>`}
+  </div>
+  <div class="card">
+    <div class="eyebrow" style="margin-bottom:6px">${prevLabel} for comparison</div>
+    <div class="mono mute" style="font-size:12px">${b.sessions} sessions \u00b7 ${b.sets} sets \u00b7 ${b.vol.toLocaleString()} kg \u00b7 ${(b.mins/60).toFixed(1)} h</div>
+  </div>
+  <div style="height:20px"></div>`;
+}
 function vMuscles(){
   const rows=muscleLoad(progWin);
   if(!rows.length) return `<div class="empty">Nothing logged in this window.</div>`;
@@ -1042,9 +1204,11 @@ function vProgress(){
   <div class="tabs">
     <button class="${progTab==="lifts"?"on":""}" onclick="progTab='lifts';render()">Lifts</button>
     <button class="${progTab==="muscles"?"on":""}" onclick="progTab='muscles';render()">Muscle volume</button>
-    <button class="${progTab==="week"?"on":""}" onclick="progTab='week';render()">This week</button>
+    <button class="${progTab==="week"?"on":""}" onclick="progTab='week';render()">Week</button>
+    <button class="${progTab==="month"?"on":""}" onclick="progTab='month';render()">Month</button>
   </div>`;
   if(progTab==="week") return head+vWeek();
+  if(progTab==="month") return head+vMonth();
   if(progTab==="muscles") return head+vMuscles();
   const logged=[...new Set(S.workouts.flatMap(w=>w.entries.map(e=>e.exerciseId)))];
   if(!logged.length) return head+`<div class="empty"><div class="big-e">◪</div>Log a workout and your PRs and strength curves show up here.</div>`;
@@ -1153,6 +1317,10 @@ function vSettings(){
     <label class="fl">Fallback rest timer (seconds, 0 turns it off)</label>
     <input inputmode="numeric" value="${S.settings.restSec}" onchange="S.settings.restSec=parseInt(this.value)||0;save()">
     <p class="mute" style="font-size:12px">Only used by exercises with no rest time of their own. Set the real ones per exercise from the ••• menu mid-workout.</p>
+    <label class="fl">Theme</label>
+    <div class="row" style="gap:6px;flex-wrap:wrap;margin-bottom:4px">
+      ${THEMES.map(([k,n])=>`<button class="btn sm ${((S.settings.theme||"iron")===k)?"pri":""}" onclick="setTheme('${k}')">${n}</button>`).join("")}
+    </div>
     <label class="fl">Timer alert</label>
     <div class="row" style="gap:8px">
       <button class="btn ${S.settings.sound===false?"":"pri"}" style="flex:1" onclick="S.settings.sound=(S.settings.sound===false);save();render();if(S.settings.sound!==false)beep(1)">Sound ${S.settings.sound===false?"off":"on"}</button>
@@ -1183,7 +1351,7 @@ function vSettings(){
     <button class="btn wide" style="margin-top:8px" onclick="exportCSV()">Export workouts as CSV</button>
     <button class="btn wide" style="margin-top:8px" onclick="importSheet()">Import Hevy workouts CSV</button>
     <button class="btn wide" style="margin-top:8px" onclick="measureSheet()">Import Hevy measurements CSV</button>
-    <p class="mute mono" style="font-size:11px;margin-bottom:4px">Build 29</p>
+    <p class="mute mono" style="font-size:11px;margin-bottom:4px">Build 31</p>
     <p class="mute" style="font-size:12px;margin-bottom:0">${S.exercises.length} exercises · ${S.routines.length} routines · ${S.workouts.length} workouts</p>
   </div>
   <div style="height:20px"></div>`;
