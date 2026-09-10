@@ -557,7 +557,8 @@ const MC={
 };
 const mcol=m=>MC[m]||"#8e8e93";
 /* weekly targets used by the rings */
-const RING_TARGETS={sessions:3,sets:70,muscles:8};
+const CORE_MUSCLES=["Chest","Back","Quads","Hamstrings","Glutes","Calves","Front Delts","Side Delts","Rear Delts","Biceps","Triceps","Core"];
+const RING_TARGETS={sessions:4,sets:96,muscles:CORE_MUSCLES.length};
 function ring(vals,size){
   // vals: [{v,goal,color,label}] outermost first
   const cx=size/2, cy=size/2;
@@ -593,7 +594,8 @@ function weekNow(){
     sets+=work.length;
     (e.muscles||[]).forEach((m,i)=>{ mus[m]=(mus[m]||0)+work.length*(i===0?1:0.5); });
   }));
-  return {sessions:ws.length,sets,mus,muscles:Object.keys(mus).length,start};
+  const hit=CORE_MUSCLES.filter(m=>(mus[m]||0)>0).length;
+  return {sessions:ws.length,sets,mus,muscles:hit,missing:CORE_MUSCLES.filter(m=>!(mus[m]>0)),start};
 }
 const TINTS=[["orange","Orange"],["blue","Blue"],["green","Green"],["red","Red"],["purple","Purple"],["graphite","Graphite"]];
 const APPEARANCES=[["auto","Automatic"],["light","Light"],["dark","Dark"]];
@@ -1709,7 +1711,7 @@ function vSettings(){
     <button class="act" onclick="importSheet()">Import Hevy workouts</button>
     <button class="act" onclick="measureSheet()">Import Hevy measurements</button>
   </div>
-  <div class="foot">${S.exercises.length} exercises · ${S.routines.length} routines · ${S.workouts.length} workouts${lb?` · backed up ${bdays===0?"today":bdays+" days ago"}`:""}<br>Ironlog Build 38</div>`;
+  <div class="foot">${S.exercises.length} exercises · ${S.routines.length} routines · ${S.workouts.length} workouts${lb?` · backed up ${bdays===0?"today":bdays+" days ago"}`:""}<br>Ironlog Build 39</div>`;
 }
 function logBody(){
   const v=parseFloat(document.getElementById("bw").value);
@@ -1732,6 +1734,43 @@ function exportCSV(){
   const a=document.createElement("a");
   a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv"}));
   a.download=`ironlog-${todayISO()}.csv`;a.click();toast("CSV downloaded");
+}
+function backupJSON(){
+  const payload={format:"ironlog-backup",version:1,exported:new Date().toISOString(),data:S};
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(new Blob([JSON.stringify(payload)],{type:"application/json"}));
+  a.download=`ironlog-backup-${todayISO()}.json`;a.click();
+  S.settings.lastBackup=todayISO(); save();
+  toast("Backup saved to your downloads");
+}
+function restoreSheet(){
+  openSheet(`<h2>Restore from a backup</h2>
+  <p class="mute" style="font-size:var(--t-foot)">Choose a backup file, or paste its contents. This replaces everything currently in the app, so take a fresh backup first if you have logged anything since.</p>
+  <label class="fl">Backup file</label>
+  <input type="file" accept=".json,application/json,text/plain" id="bfile" onchange="readBackupFile(this)">
+  <label class="fl">Or paste the contents</label>
+  <textarea id="bpaste" rows="5" placeholder='{"format":"ironlog-backup",...}'></textarea>
+  <button class="btn pri" style="width:calc(100% - var(--inset)*2);margin:var(--s4) var(--inset) 0" onclick="runRestore(document.getElementById('bpaste').value)">Restore</button>
+  <button class="btn" style="width:calc(100% - var(--inset)*2);margin:var(--s2) var(--inset) 0" onclick="closeSheet()">Cancel</button>`);
+}
+function readBackupFile(input){
+  const f=input.files&&input.files[0]; if(!f) return;
+  const r=new FileReader();
+  r.onload=()=>{document.getElementById("bpaste").value=r.result;toast("File loaded \u2014 tap Restore");};
+  r.onerror=()=>toast("Couldn't read that file");
+  r.readAsText(f);
+}
+function runRestore(txt){
+  if(!txt||!txt.trim()){toast("Choose a file or paste the contents first");return;}
+  let pj; try{pj=JSON.parse(txt);}catch(e){toast("That isn't a valid backup file");return;}
+  const d=(pj&&pj.format==="ironlog-backup")?pj.data:pj;
+  if(!d||!Array.isArray(d.workouts)||!Array.isArray(d.exercises)){toast("That file isn't an Ironlog backup");return;}
+  const n=d.workouts.length,r=(d.routines||[]).length;
+  if(!confirm(`Restore ${n} workouts and ${r} routines? This replaces everything currently in the app.`))return;
+  S={exercises:d.exercises,routines:d.routines||[],workouts:d.workouts,body:d.body||[],
+     settings:Object.assign({restSec:120,unit:"kg"},d.settings||{}),active:d.active||null};
+  S.exercises.forEach(e=>{ if(e.rest==null) e.rest=defaultRest(e.name,e.primary||""); });
+  save(); applyTheme(); closeSheet(); go("history"); toast(`Restored ${n} workouts`);
 }
 function importSheet(){
   openSheet(`<h2>Import a Hevy CSV</h2>
