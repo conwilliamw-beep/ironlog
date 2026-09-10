@@ -91,8 +91,11 @@ h1,h2,h3{margin:0;letter-spacing:-0.026em}
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
 }
 #navbar.stuck .nbtitle{opacity:1}
-.nbbtn{color:var(--accent);font-size:var(--t-body);font-weight:400;min-height:var(--tap);
-  display:inline-flex;align-items:center;padding:0 2px;background:none}
+.nbbtn{color:var(--accent);font-size:var(--t-body);font-weight:400;min-height:var(--tap);min-width:var(--tap);
+  display:inline-flex;align-items:center;justify-content:center;padding:0 2px;background:none}
+.nbbtn svg{width:24px;height:24px;flex:0 0 auto}
+#nbleft,#nbright{min-width:var(--tap);display:flex;align-items:center}
+#nbright{justify-content:flex-end}
 .nbbtn:active{opacity:.4}
 .nbbtn.strong{font-weight:600}
 .largetitle{font-size:var(--t-large);font-weight:700;line-height:1.1;padding:0 var(--inset) var(--s2);letter-spacing:-0.03em}
@@ -130,6 +133,10 @@ h1,h2,h3{margin:0;letter-spacing:-0.026em}
 .row-i .t{flex:1;min-width:0;font-size:var(--t-body)}
 .row-i .t .sub{font-size:var(--t-foot);color:var(--label-2);margin-top:1px}
 .row-i .v{font-size:var(--t-body);color:var(--label-2);font-variant-numeric:tabular-nums;flex:0 0 auto}
+.list-item{display:flex;justify-content:space-between;align-items:center;gap:var(--s3);
+  padding:11px var(--lead);min-height:var(--tap);position:relative;background:var(--group)}
+.list-item + .list-item::before{content:"";position:absolute;top:0;left:var(--lead);right:0;height:0.5px;background:var(--sep)}
+.list-item:active{background:var(--fill-2)}
 .chev{color:var(--label-3);flex:0 0 auto;display:flex}
 .chev svg{width:14px;height:14px}
 .mono,.num{font-family:var(--f-num);font-variant-numeric:tabular-nums}
@@ -247,6 +254,27 @@ nav button.on{color:var(--accent)}
 .prlist{display:flex;align-items:center;gap:10px;padding:6px 0;font-size:var(--t-body)}
 .prlist .icn{color:var(--accent);font-size:var(--t-callout)}
 
+/* ---- rings & hierarchy ---- */
+.ringcard{display:flex;align-items:center;gap:var(--s5);padding:var(--s5) var(--s4)}
+.ringwrap{width:132px;flex:0 0 auto}
+.ringlegend{flex:1;min-width:0;display:flex;flex-direction:column;gap:var(--s3)}
+.lg{display:flex;align-items:center;gap:var(--s2)}
+.lg .dot{width:8px;height:8px;border-radius:50%;flex:0 0 auto}
+.lgk{font-size:var(--t-cap2);color:var(--label-2);text-transform:uppercase;letter-spacing:.04em}
+.lgv{font-size:var(--t-t2);font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:-.03em;line-height:1.05}
+.lgv span{font-size:var(--t-foot);font-weight:600;opacity:.55}
+.row-i.hero{padding:var(--s4) var(--lead)}
+.tile.lg{width:46px;height:46px;border-radius:11px}
+.tile.lg svg{width:24px;height:24px}
+.herot{font-size:var(--t-t3);font-weight:700;letter-spacing:-.02em}
+.mrow{display:grid;grid-template-columns:26px 1fr auto;grid-template-areas:"g n v" ". t t";
+  align-items:center;gap:0 var(--s3);margin-bottom:var(--s3)}
+.mrow svg{grid-area:g}
+.mrow .mn{grid-area:n;font-size:var(--t-sub)}
+.mrow .mv{grid-area:v;font-size:var(--t-callout);font-weight:700;font-variant-numeric:tabular-nums}
+.mrow .mtrack{grid-area:t;height:6px;background:var(--fill);border-radius:99px;overflow:hidden;margin-top:5px}
+.mrow .mtrack i{display:block;height:100%;border-radius:99px}
+.mrow:last-child{margin-bottom:0}
 /* segmented control */
 .tabs{display:flex;gap:2px;background:var(--fill-3);border-radius:9px;padding:2px;margin:0 var(--inset) var(--s4);overflow-x:auto}
 .tabs button{flex:1;white-space:nowrap;font-size:var(--t-foot);font-weight:500;color:var(--label);
@@ -521,6 +549,52 @@ const ICON={
   archive:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8.5v9a2.5 2.5 0 0 0 2.5 2.5h11a2.5 2.5 0 0 0 2.5-2.5v-9"/><rect x="2.8" y="4" width="18.4" height="4.5" rx="1.6"/><path d="M10 12.5h4"/></svg>',
   x:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>'
 };
+const MC={
+  "Chest":"#ff375f","Back":"#0a84ff","Quads":"#bf5af2","Hamstrings":"#5e5ce6",
+  "Glutes":"#ff2d55","Calves":"#64d2ff","Front Delts":"#ff9f0a","Side Delts":"#ffd60a",
+  "Rear Delts":"#ff6482","Traps":"#ac8e68","Biceps":"#30d158","Triceps":"#66d4cf",
+  "Core":"#5ac8fa","Forearms":"#a2845e","Lower Back":"#8e8e93","Other":"#8e8e93"
+};
+const mcol=m=>MC[m]||"#8e8e93";
+/* weekly targets used by the rings */
+const RING_TARGETS={sessions:3,sets:70,muscles:8};
+function ring(vals,size){
+  // vals: [{v,goal,color,label}] outermost first
+  const cx=size/2, cy=size/2;
+  const sw=size*0.115, gap=size*0.035;
+  let out="";
+  vals.forEach((x,i)=>{
+    const r=cx-sw/2-i*(sw+gap);
+    const c=2*Math.PI*r;
+    const pct=Math.max(0,Math.min(1.35,(x.goal? x.v/x.goal:0)));
+    const dash=c*Math.min(1,pct);
+    out+=`<circle cx="${cx}" cy="${cy}" r="${r.toFixed(1)}" fill="none" stroke="${x.color}" stroke-opacity="0.22" stroke-width="${sw.toFixed(1)}"/>`;
+    if(pct>0) out+=`<circle cx="${cx}" cy="${cy}" r="${r.toFixed(1)}" fill="none" stroke="${x.color}" stroke-width="${sw.toFixed(1)}"
+      stroke-linecap="round" stroke-dasharray="${dash.toFixed(1)} ${(c-dash).toFixed(1)}"
+      transform="rotate(-90 ${cx} ${cy})"/>`;
+  });
+  return `<svg viewBox="0 0 ${size} ${size}" style="width:100%;height:auto;display:block" role="img" aria-label="Weekly rings">${out}</svg>`;
+}
+function gauge(pct,color,size){
+  const cx=size/2,r=cx-4,c=2*Math.PI*r,d=c*Math.max(0,Math.min(1,pct));
+  return `<svg viewBox="0 0 ${size} ${size}" style="width:${size}px;height:${size}px;flex:0 0 auto">
+    <circle cx="${cx}" cy="${cx}" r="${r}" fill="none" stroke="${color}" stroke-opacity="0.2" stroke-width="4"/>
+    <circle cx="${cx}" cy="${cx}" r="${r}" fill="none" stroke="${color}" stroke-width="4" stroke-linecap="round"
+      stroke-dasharray="${d.toFixed(1)} ${(c-d).toFixed(1)}" transform="rotate(-90 ${cx} ${cx})"/></svg>`;
+}
+function weekNow(){
+  const d=new Date(todayISO()); d.setDate(d.getDate()-((d.getDay()+6)%7));
+  const start=isoLocal(d);
+  const ws=S.workouts.filter(w=>w.date>=start);
+  let sets=0; const mus={};
+  ws.forEach(w=>w.entries.forEach(en=>{
+    const e=ex(en.exerciseId);
+    const work=en.sets.filter(x=>x.done&&x.type!=="warmup");
+    sets+=work.length;
+    (e.muscles||[]).forEach((m,i)=>{ mus[m]=(mus[m]||0)+work.length*(i===0?1:0.5); });
+  }));
+  return {sessions:ws.length,sets,mus,muscles:Object.keys(mus).length,start};
+}
 const TINTS=[["orange","Orange"],["blue","Blue"],["green","Green"],["red","Red"],["purple","Purple"],["graphite","Graphite"]];
 const APPEARANCES=[["auto","Automatic"],["light","Light"],["dark","Dark"]];
 function applyTheme(){
@@ -756,32 +830,61 @@ function vToday(){
   if(S.active) return vActive();
   setNav(TITLES.today,"",'<button class="nbbtn" onclick="startWorkout(null)" aria-label="Start empty workout">'+ICON.plus+'</button>');
   const streak=streakDays();
-  const wk=S.workouts.filter(w=>daysAgo(w.date)<7);
+  const W=weekNow();
   const n=nextUp();
   const last=S.workouts.slice().sort((a,b)=>b.date.localeCompare(a.date)||b.ts-a.ts)[0];
   const gap=last?daysAgo(last.date):null;
+  const rings=[
+    {v:W.sessions,goal:RING_TARGETS.sessions,color:"#ff375f"},
+    {v:W.sets,goal:RING_TARGETS.sets,color:"#30d158"},
+    {v:W.muscles,goal:RING_TARGETS.muscles,color:"#0a84ff"}
+  ];
   return `
   <div class="largetitle">Train</div>
   <div class="largesub">${new Date().toLocaleDateString("en-NZ",{weekday:"long",day:"numeric",month:"long"})}</div>
-  <div class="grid3">
-    <div class="stat"><div class="k">Streak</div><div class="v">${streak}<span style="font-size:var(--t-foot);color:var(--label-2);font-weight:500"> wk</span></div></div>
-    <div class="stat"><div class="k">This week</div><div class="v">${wk.length}</div></div>
-    <div class="stat"><div class="k">All time</div><div class="v">${S.workouts.length}</div></div>
+
+  <div class="card ringcard">
+    <div class="ringwrap">${ring(rings,150)}</div>
+    <div class="ringlegend">
+      <div class="lg"><span class="dot" style="background:#ff375f"></span>
+        <div><div class="lgk">Sessions</div><div class="lgv" style="color:#ff375f">${W.sessions}<span>/${RING_TARGETS.sessions}</span></div></div></div>
+      <div class="lg"><span class="dot" style="background:#30d158"></span>
+        <div><div class="lgk">Working sets</div><div class="lgv" style="color:#30d158">${W.sets}<span>/${RING_TARGETS.sets}</span></div></div></div>
+      <div class="lg"><span class="dot" style="background:#0a84ff"></span>
+        <div><div class="lgk">Muscles hit</div><div class="lgv" style="color:#0a84ff">${W.muscles}<span>/${RING_TARGETS.muscles}</span></div></div></div>
+    </div>
   </div>
-  ${n?`<div class="eyebrow tight">Up next</div>
+  <div class="foot" style="margin-bottom:var(--s2)">Week beginning ${new Date(W.start+"T00:00:00").toLocaleDateString("en-NZ",{day:"numeric",month:"long"})} · ${streak} week streak</div>
+
+  ${n?`<div class="eyebrow">Up next</div>
   <div class="group">
-    <div class="row-i" onclick="startWorkout('${n.id}')">
-      <span class="tile" style="background:var(--accent);color:var(--on-accent)">${ICON.play}</span>
-      <span class="t"><div style="font-weight:600">${esc(n.name)}</div>
-        <div class="sub">${last?`Last session ${gap===0?"today":gap===1?"yesterday":gap+" days ago"} · ${esc(last.name)}`:"No sessions logged yet"}</div></span>
+    <div class="row-i hero" onclick="startWorkout('${n.id}')">
+      <span class="tile lg" style="background:var(--accent);color:var(--on-accent)">${ICON.play}</span>
+      <span class="t"><div class="herot">${esc(n.name)}</div>
+        <div class="sub">${last?`Last ${gap===0?"today":gap===1?"yesterday":gap+" days ago"} · ${esc(last.name)}`:"No sessions logged yet"}</div></span>
       <span class="chev">${ICON.chev}</span>
     </div>
   </div>`:""}
+
+  ${Object.keys(W.mus).length?`<div class="eyebrow">This week by muscle</div>
+  <div class="card">
+    ${Object.entries(W.mus).sort((a,b)=>b[1]-a[1]).slice(0,8).map(([m,v])=>{
+      const goal=10, pct=v/goal;
+      return `<div class="mrow">
+        ${gauge(pct,mcol(m),26)}
+        <span class="mn">${esc(m)}</span>
+        <span class="mv" style="color:${mcol(m)}">${v}</span>
+        <div class="mtrack"><i style="width:${Math.min(100,pct*100)}%;background:${mcol(m)}"></i></div>
+      </div>`;}).join("")}
+  </div>
+  <div class="foot">Rough guide is 10 or more hard sets per muscle each week.</div>`:""}
+
   ${S.routines.length?`<div class="eyebrow">All routines</div>
   <div class="group">
     ${S.routines.map(r=>`<div class="row-i" onclick="startWorkout('${r.id}')">
+      <span class="tile" style="background:${mcol((ex(r.items[0]?.exerciseId)||{}).primary||"Other")}">${ICON.train}</span>
       <span class="t"><div>${esc(r.name)}</div>
-        <div class="sub">${r.items.length} exercises · ${r.items.reduce((n2,i)=>n2+i.sets.length,0)} sets</div></span>
+        <div class="sub">${r.items.length} exercises · ${r.items.reduce((n2,it)=>n2+it.sets.length,0)} sets</div></span>
       <span class="chev">${ICON.chev}</span></div>`).join("")}
     <button class="act" onclick="startWorkout(null)">Start an empty workout</button>
   </div>`
@@ -799,6 +902,10 @@ function vActive(){
   <div class="largetitle">${esc(a.name)}</div>
   <div class="largesub">In progress · ${mins} min</div>
   ${a.entries.map((en,ei)=>exBlock(en,ei)).join("")}
+  <div class="eyebrow">Session note</div>
+  <div class="group"><div class="row-i">
+    <span class="t"><input placeholder="How it felt, tempo changes, niggles" value="${esc(a.notes||"")}" onchange="S.active.notes=this.value;save()" style="background:none;padding:0;min-height:0"></span>
+  </div></div>
   <div class="group">
     <button class="act" onclick="pickExercise(id=>{S.active.entries.push({exerciseId:id,superset:'',sets:[{type:'normal',weight:'',reps:'',done:false}],notes:''});save();closeSheet();render();})">Add exercise</button>
   </div>
@@ -853,7 +960,7 @@ function exBlock(en,ei){
   const byType={};
   prevSets.forEach(s=>{ (byType[s.type]=byType[s.type]||[]).push(s); });
   const counters={};
-  return `<div class="exblock">
+  return `<div class="exblock" style="border-left:3px solid ${mcol(e.primary)}">
     <div class="exhead">
       <div><span class="nm">${esc(e.name)}</span>${en.superset?`<span class="ss">SS ${esc(en.superset)}</span>`:""}
         <div class="mute mono" style="font-size:var(--t-caption2);margin-top:2px">${prevSets.length?"Rest "+Math.floor(e.rest/60)+":"+String(e.rest%60).padStart(2,"0"):"First time logging this"}</div></div>
@@ -984,6 +1091,7 @@ function vRoutines(){
       <span class="t"><div>${esc(r.name)}</div>
         <div class="sub">${r.items.map(i=>esc(ex(i.exerciseId).name)).slice(0,3).join(", ")}${r.items.length>3?` +${r.items.length-3} more`:""}</div></span>
       <span class="chev">${ICON.chev}</span></div>`).join("")}
+    <button class="act strong" onclick="editing={id:null,name:'',items:[]};render()">New routine</button>
   </div>
   <div class="foot">No limit on routines or custom exercises.</div>`
   :`<div class="empty"><div class="big-e">${ICON.routines}</div>A routine is an exercise list with target sets. The logger fills in the numbers.</div>
@@ -1149,11 +1257,16 @@ function vHistory(){
   ${sorted.length?Object.keys(byMonth).map(mk=>{
     const ml=new Date(+mk.split("-")[0],+mk.split("-")[1]-1,1).toLocaleDateString("en-NZ",{month:"long",year:"numeric"});
     return `<div class="eyebrow">${ml}</div><div class="group">
-      ${byMonth[mk].map(w=>`<div class="row-i" onclick="showWorkout('${w.id}')">
+      ${byMonth[mk].map(w=>{
+        const mcount={};
+        w.entries.forEach(en=>{const p=ex(en.exerciseId).primary; mcount[p]=(mcount[p]||0)+en.sets.length;});
+        const top=Object.entries(mcount).sort((a,c)=>c[1]-a[1])[0];
+        return `<div class="row-i" onclick="showWorkout('${w.id}')">
+        <span class="tile" style="background:${mcol(top?top[0]:"Other")}">${ICON.train}</span>
         <span class="t"><div>${esc(w.name)}</div>
           <div class="sub">${workoutSets(w)} sets · ${Math.round(workoutVolume(w)).toLocaleString()} kg · ${Math.round((w.durationSec||0)/60)} min</div></span>
         <span class="v" style="font-size:var(--t-sub)">${new Date(w.date+"T00:00:00").toLocaleDateString("en-NZ",{day:"numeric",month:"short"})}</span>
-        <span class="chev">${ICON.chev}</span></div>`).join("")}
+        <span class="chev">${ICON.chev}</span></div>`;}).join("")}
     </div>`;}).join("")
   :`<div class="empty"><div class="big-e">${ICON.history}</div>No workouts logged yet.</div>`}`;
 }
@@ -1294,8 +1407,8 @@ function vWeek(){
   const dfmt=d=>new Date(d).toLocaleDateString("en-NZ",{day:"numeric",month:"short"});
   return `<p class="mute mono" style="font-size:var(--t-caption);margin-top:0">${dfmt(a.start)} \u2013 ${dfmt(a.end)}</p>
   <div class="grid3" style="margin-bottom:12px">
-    <div class="stat"><div class="k">Sessions</div><div class="v">${a.sessions}</div><div>${delta(a.sessions,b.sessions)}</div></div>
-    <div class="stat"><div class="k">Working sets</div><div class="v">${a.sets}</div><div>${delta(a.sets,b.sets)}</div></div>
+    <div class="stat"><div class="k">Sessions</div><div class="v" style="color:#ff375f">${a.sessions}</div><div>${delta(a.sessions,b.sessions)}</div></div>
+    <div class="stat"><div class="k">Working sets</div><div class="v" style="color:#30d158">${a.sets}</div><div>${delta(a.sets,b.sets)}</div></div>
     <div class="stat"><div class="k">Volume</div><div class="v" style="font-size:var(--t-subhead)">${a.vol.toLocaleString()}</div><div>${delta(a.vol,b.vol)}</div></div>
   </div>
   <div class="card">
@@ -1376,9 +1489,9 @@ function vMonth(){
     <button class="calnav" onclick="shiftRepMonth(1)" aria-label="Next month" ${isNow?'style="opacity:.3"':""}>${ICON.right}</button>
   </div>
   <div class="grid3" style="margin-bottom:8px">
-    <div class="stat"><div class="k">Sessions</div><div class="v">${a.sessions}</div><div>${delta(a.sessions,b.sessions)}</div></div>
-    <div class="stat"><div class="k">Sets</div><div class="v">${a.sets}</div><div>${delta(a.sets,b.sets)}</div></div>
-    <div class="stat"><div class="k">Hours</div><div class="v">${(a.mins/60).toFixed(1)}</div><div>${delta(a.mins,b.mins)}</div></div>
+    <div class="stat"><div class="k">Sessions</div><div class="v" style="color:#ff375f">${a.sessions}</div><div>${delta(a.sessions,b.sessions)}</div></div>
+    <div class="stat"><div class="k">Sets</div><div class="v" style="color:#30d158">${a.sets}</div><div>${delta(a.sets,b.sets)}</div></div>
+    <div class="stat"><div class="k">Hours</div><div class="v" style="color:#0a84ff">${(a.mins/60).toFixed(1)}</div><div>${delta(a.mins,b.mins)}</div></div>
   </div>
   <div class="grid3" style="margin-bottom:12px">
     <div class="stat"><div class="k">Volume</div><div class="v" style="font-size:var(--t-subhead)">${a.vol.toLocaleString()}</div><div>${delta(a.vol,b.vol)}</div></div>
@@ -1454,8 +1567,8 @@ function vProgress(){
     ${logged.slice().sort((a,b)=>ex(a).name.localeCompare(ex(b).name))
       .map(id=>`<option value="${id}" ${id===progEx?"selected":""}>${esc(ex(id).name)}</option>`).join("")}
   </select></div></div>
-  <div class="grid3" style="margin-bottom:12px">
-    <div class="stat"><div class="k">Best set</div><div class="v" style="font-size:var(--t-headline)">${best.weight?disp(best.weight,e)+e.unit:"—"}</div></div>
+  <div class="grid3">
+    <div class="stat" style="border-left:3px solid ${mcol(e.primary)}"><div class="k">Best set</div><div class="v" style="font-size:var(--t-headline)">${best.weight?disp(best.weight,e)+e.unit:"—"}</div></div>
     <div class="stat"><div class="k">Est. 1RM</div><div class="v" style="font-size:var(--t-headline)">${best.e1rm?Math.round(disp(best.e1rm,e))+e.unit:"—"}</div></div>
     <div class="stat"><div class="k">Sessions</div><div class="v">${pts.length}</div></div></div>
   ${(()=>{const st=stallInfo(progEx);if(!st)return"";
@@ -1465,7 +1578,7 @@ function vProgress(){
     return `<div class="card" style="padding:10px"><div class="mono mute" style="font-size:var(--t-caption)">Best ${esc(st.bestLabel)} \u00b7 improved ${st.since} session${st.since===1?"":"s"} ago</div></div>`;})()}
   <div class="card"><div class="eyebrow" style="margin-bottom:8px">Estimated 1RM over time</div>
   ${rangeTabs(liftWin,"setLiftWin")}
-  ${chart(pts.map(p=>({d:p.d,v:disp(p.v,e)})),e.unit,false)}</div>
+  ${chart(pts.map(p=>({d:p.d,v:disp(p.v,e)})),e.unit,false,mcol(e.primary))}</div>
   <div class="card" style="padding:0">${pts.slice().reverse().map(p=>`<div class="list-item">
     <span class="mono mute" style="font-size:var(--t-caption)">${p.d}</span>
     <span class="mono">${Math.round(disp(p.v,e))} ${e.unit}</span></div>`).join("")}</div>
@@ -1479,7 +1592,8 @@ function niceStep(range,target){
   const mult = n<=1?1 : n<=2?2 : n<=2.5?2.5 : n<=5?5 : 10;
   return mult*mag;
 }
-function chart(pts,unit,decimals){
+function chart(pts,unit,decimals,COL){
+  COL=COL||"var(--accent)";
   if(pts.length<2) return `<div class="mute" style="font-size:var(--t-footnote);padding:14px 0">Two data points needed before a line means anything.</div>`;
   const W=320,H=140,pl=34,pr=6,pt=10,pb=18;
   const xs=pts.map(p=>new Date(p.d).getTime());
@@ -1501,14 +1615,15 @@ function chart(pts,unit,decimals){
   const d=pts.map((p,i)=>`${i?"L":"M"}${X(xs[i]).toFixed(1)},${Y(p.v).toFixed(1)}`).join(" ");
   const area=`M${X(x0).toFixed(1)},${H-pb} `+pts.map((p,i)=>`L${X(xs[i]).toFixed(1)},${Y(p.v).toFixed(1)}`).join(" ")+` L${X(x1).toFixed(1)},${H-pb} Z`;
   const marks=pts.length>40?[0,pts.length-1]:pts.map((_,i)=>i);
-  const dfmt=t=>new Date(t).toLocaleDateString("en-NZ",{month:"short",year:"2-digit"});
+  const dfmt=t=>{const d=new Date(t);return d.toLocaleDateString("en-NZ",{month:"short"})+" '"+String(d.getFullYear()).slice(2);};
   return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto" role="img" aria-label="Trend chart">
     ${lines.join("")}
-    <path d="${area}" fill="var(--accent)" opacity="0.12"/>
-    <path d="${d}" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
-    ${marks.map(i=>`<circle cx="${X(xs[i]).toFixed(1)}" cy="${Y(pts[i].v).toFixed(1)}" r="2.2" fill="var(--bg-elev)" stroke="var(--accent)" stroke-width="1.6"/>`).join("")}
+    <path d="${area}" fill="${COL}" opacity="0.14"/>
+    <path d="${d}" fill="none" stroke="${COL}" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/>
+    ${marks.map(i=>`<circle cx="${X(xs[i]).toFixed(1)}" cy="${Y(pts[i].v).toFixed(1)}" r="2.2" fill="var(--group)" stroke="${COL}" stroke-width="1.6"/>`).join("")}
     <text x="${pl}" y="${H-5}" font-size="8.5" fill="var(--label-2)" font-family="ui-monospace,-apple-system,monospace">${dfmt(x0)}</text>
     <text x="${W-pr}" y="${H-5}" text-anchor="end" font-size="8.5" fill="var(--label-2)" font-family="ui-monospace,-apple-system,monospace">${dfmt(x1)}</text>
+    <text x="${pl-5}" y="${pt+2}" text-anchor="end" font-size="8" fill="var(--label-3)" font-family="ui-monospace,-apple-system,monospace">${unit}</text>
   </svg>
   <div class="mono mute" style="font-size:var(--t-caption2);text-align:right">${unit}</div>`;
 }
@@ -1543,8 +1658,8 @@ function vSettings(){
       ${chart(S.body.filter(x=>inRange(x.date,bodyWin)).slice().sort((a,c)=>a.date.localeCompare(c.date)).map(x=>({d:x.date,v:x.kg})),"kg",true)}</div>`:""}
   </div>
   <div class="group">
-    <div class="row-i"><span class="t"><input id="bw" inputmode="decimal" placeholder="Today's weight in kg" style="background:none;padding:0;min-height:0"></span>
-      <button class="btn sm" onclick="logBody()">Log</button></div>
+    <div class="row-i"><span class="t"><input id="bw" inputmode="decimal" placeholder="Today's weight in kg" style="background:none;padding:0;min-height:0;font-size:var(--t-body)"></span>
+      <button class="btn sm pri" onclick="logBody()">Log</button></div>
   </div>
 
   <div class="eyebrow">Appearance</div>
@@ -1594,7 +1709,7 @@ function vSettings(){
     <button class="act" onclick="importSheet()">Import Hevy workouts</button>
     <button class="act" onclick="measureSheet()">Import Hevy measurements</button>
   </div>
-  <div class="foot">${S.exercises.length} exercises · ${S.routines.length} routines · ${S.workouts.length} workouts${lb?` · backed up ${bdays===0?"today":bdays+" days ago"}`:""}<br>Ironlog Build 35</div>`;
+  <div class="foot">${S.exercises.length} exercises · ${S.routines.length} routines · ${S.workouts.length} workouts${lb?` · backed up ${bdays===0?"today":bdays+" days ago"}`:""}<br>Ironlog Build 38</div>`;
 }
 function logBody(){
   const v=parseFloat(document.getElementById("bw").value);
@@ -1603,50 +1718,20 @@ function logBody(){
   S.body.push({date:todayISO(),kg:Math.round(v*10)/10});save();render();toast("Bodyweight logged");
 }
 function exportCSV(){
-  const rows=[["date","workout","exercise","set_index","set_type","weight_kg","reps","est_1rm_kg"]];
+  const rows=[["date","workout","exercise","set_index","set_type","weight_kg","reps","est_1rm_kg","exercise_note","permanent_note","workout_note","duration_min"]];
   S.workouts.slice().sort((a,b)=>a.date.localeCompare(b.date)).forEach(w=>
-    w.entries.forEach(en=>en.sets.forEach((s,i)=>
-      rows.push([w.date,w.name,ex(en.exerciseId).name,i+1,s.type,s.weight,s.reps,Math.round(e1rm(+s.weight||0,+s.reps||0)*10)/10]))));
-  S.body.forEach(b=>rows.push([b.date,"Bodyweight","Bodyweight",1,"body",b.kg,"",""]));
+    w.entries.forEach(en=>{
+      const e=ex(en.exerciseId);
+      en.sets.forEach((s2,i)=>
+        rows.push([w.date,w.name,e.name,i+1,s2.type,s2.weight,s2.reps,
+          Math.round(e1rm(+s2.weight||0,+s2.reps||0)*10)/10,
+          en.notes||"", e.note||"", w.notes||"", Math.round((w.durationSec||0)/60)]));
+    }));
+  S.body.forEach(b=>rows.push([b.date,"Bodyweight","Bodyweight",1,"body",b.kg,"","","","","",""]));
   const csv=rows.map(r=>r.map(c=>`"${String(c??"").replace(/"/g,'""')}"`).join(",")).join("\n");
   const a=document.createElement("a");
   a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv"}));
   a.download=`ironlog-${todayISO()}.csv`;a.click();toast("CSV downloaded");
-}
-function backupJSON(){
-  const payload={format:"ironlog-backup",version:1,exported:new Date().toISOString(),data:S};
-  const a=document.createElement("a");
-  a.href=URL.createObjectURL(new Blob([JSON.stringify(payload)],{type:"application/json"}));
-  a.download=`ironlog-backup-${todayISO()}.json`;a.click();
-  S.settings.lastBackup=todayISO(); save();
-  toast("Backup saved to your downloads");
-}
-function restoreSheet(){
-  openSheet(`<h2>Restore from a backup</h2>
-  <p class="mute" style="font-size:var(--t-footnote)">Pick a backup file, or paste its contents. This replaces everything currently in the app, so take a fresh backup first if you have logged anything since.</p>
-  <input type="file" accept=".json,application/json" id="bfile" onchange="readBackupFile(this)">
-  <label class="fl">Or paste the file contents</label>
-  <textarea id="bpaste" rows="5" placeholder='{"format":"ironlog-backup",...}'></textarea>
-  <button class="btn pri" style="width:calc(100% - var(--inset)*2);margin:var(--s2) var(--inset) 0;margin-top:10px" onclick="runRestore(document.getElementById('bpaste').value)">Restore</button>
-  <button class="btn" style="width:calc(100% - var(--inset)*2);margin:var(--s2) var(--inset) 0;margin-top:8px" onclick="closeSheet()">Cancel</button>`);
-}
-function readBackupFile(input){
-  const f=input.files&&input.files[0]; if(!f) return;
-  const r=new FileReader();
-  r.onload=()=>{document.getElementById("bpaste").value=r.result;toast("File loaded — tap Restore");};
-  r.onerror=()=>toast("Couldn't read that file");
-  r.readAsText(f);
-}
-function runRestore(txt){
-  if(!txt||!txt.trim()){toast("Choose a file or paste the contents first");return;}
-  let p; try{p=JSON.parse(txt);}catch(e){toast("That isn't a valid backup file");return;}
-  const d=p&&p.format==="ironlog-backup"?p.data:p;
-  if(!d||!Array.isArray(d.workouts)||!Array.isArray(d.exercises)){toast("That file isn't an Ironlog backup");return;}
-  const n=d.workouts.length,r=(d.routines||[]).length;
-  if(!confirm(`Restore ${n} workouts and ${r} routines? This replaces everything currently in the app.`))return;
-  S={exercises:d.exercises,routines:d.routines||[],workouts:d.workouts,body:d.body||[],
-     settings:d.settings||{restSec:120,unit:"kg"},active:d.active||null};
-  save();closeSheet();go("history");toast(`Restored ${n} workouts`);
 }
 function importSheet(){
   openSheet(`<h2>Import a Hevy CSV</h2>
