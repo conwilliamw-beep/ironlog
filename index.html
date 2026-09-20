@@ -558,6 +558,8 @@ const MC={
 const mcol=m=>MC[m]||"#8e8e93";
 /* weekly targets used by the rings */
 const CORE_MUSCLES=["Chest","Back","Quads","Hamstrings","Glutes","Calves","Front Delts","Side Delts","Rear Delts","Biceps","Triceps","Core"];
+const SHORT_SETS=3;
+const SHORT_PROTECTED=["Calves","Rear Delts"];
 const RING_TARGETS={sessions:4,sets:96,muscles:CORE_MUSCLES.length};
 function ring(vals,size){
   // vals: [{v,goal,color,label}] outermost first
@@ -678,27 +680,37 @@ function workoutVolume(w){
 function workoutSets(w){ let n=0; w.entries.forEach(en=>n+=en.sets.filter(s=>s.done).length); return n; }
 
 /* ---------- start a workout ---------- */
-function startWorkout(routineId){
+function startWorkout(routineId,short){
   const r=routineId?S.routines.find(x=>x.id===routineId):null;
   const entries=(r?r.items:[]).map(it=>{
     const e=ex(it.exerciseId);
+    const protectedEx=SHORT_PROTECTED.indexOf(e.primary)>=0;
+    let planned=it.sets;
+    if(short&&!protectedEx){
+      const warm=planned.filter(x=>x.type==="warmup");
+      const work=planned.filter(x=>x.type==="normal").slice(0,SHORT_SETS);
+      const drops=planned.filter(x=>x.type==="drop").slice(0,1);
+      planned=warm.concat(work,drops);
+    }
     const prev=lastSessionFor(it.exerciseId,null);
-    const targets=it.sets.filter(s=>s.type==="normal");
+    const targets=planned.filter(x=>x.type==="normal");
     const topRep=targets.length?Math.max.apply(null,targets.map(t=>+t.reps||0)):0;
     const lowRep=(e.repLow!=null&&e.repLow>0)?e.repLow:Math.max(1,topRep-4);
     let hitAll=false, prevWork=[];
     if(prev){
-      prevWork=prev.en.sets.filter(s=>s.done&&s.type==="normal");
-      hitAll = prevWork.length>=targets.length && targets.length>0 &&
-        targets.every((t,i)=>prevWork[i] && (+prevWork[i].reps||0) >= (+t.reps||0));
+      prevWork=prev.en.sets.filter(x=>x.done&&x.type==="normal");
+      // a session logged in short mode only has to clear the sets it actually planned
+      const need=prev.w.short? Math.min(targets.length,Math.max(SHORT_SETS,prevWork.length)) : targets.length;
+      hitAll = need>0 && prevWork.length>=need &&
+        targets.slice(0,need).every((t,i)=>prevWork[i] && (+prevWork[i].reps||0) >= (+t.reps||0));
     }
-    const sets=it.sets.map((t,i)=>{
+    const sets=planned.map((t,i)=>{
       let w="",reps=t.reps??"";
       if(prev){
-        const pool=prev.en.sets.filter(s=>s.done&&s.type===t.type);
-        const p=pool[i]||pool[pool.length-1];
-        if(p){
-          const pw=+p.weight||0, pr=+p.reps||0;
+        const pool=prev.en.sets.filter(x=>x.done&&x.type===t.type);
+        const pp=pool[i]||pool[pool.length-1];
+        if(pp){
+          const pw=+pp.weight||0, pr=+pp.reps||0;
           if(t.type!=="normal"){ w=pw; reps=pr; }
           else if(hitAll){ w=pw+(e.inc||2.5); reps=lowRep; }
           else { w=pw; reps=Math.min(pr+1, +t.reps||pr+1); }
@@ -708,11 +720,12 @@ function startWorkout(routineId){
     });
     return {exerciseId:it.exerciseId,superset:it.superset||"",sets,notes:""};
   });
-  S.active={id:uid(),date:todayISO(),ts:Date.now(),name:r?r.name:"Quick workout",routineId:routineId||null,entries,notes:"",start:Date.now(),
+  S.active={id:uid(),date:todayISO(),ts:Date.now(),name:r?r.name:"Quick workout",routineId:routineId||null,
+    entries,notes:"",start:Date.now(),short:!!short,
     cooldown:(r&&r.cooldown?r.cooldown:[]).map(c=>({...c,done:false}))};
   save(); go("today");
-  if(entries.some(e=>e.sets.some(s=>s.weight!=="")))
-    toast("Pre-filled \u2014 reps climb, then weight jumps");
+  if(short) toast(`Short session \u2014 ${SHORT_SETS} sets, calves and rear delts kept full`);
+  else if(entries.some(e=>e.sets.some(x=>x.weight!==""))) toast("Pre-filled \u2014 reps climb, then weight jumps");
 }
 function finishWorkout(){
   const a=S.active; if(!a) return;
@@ -866,7 +879,9 @@ function vToday(){
         <div class="sub">${last?`Last ${gap===0?"today":gap===1?"yesterday":gap+" days ago"} · ${esc(last.name)}`:"No sessions logged yet"}</div></span>
       <span class="chev">${ICON.chev}</span>
     </div>
-  </div>`:""}
+    <button class="act" onclick="startWorkout('${n.id}',true)">Short session \u00b7 ${SHORT_SETS} sets</button>
+  </div>
+  <div class="foot">Short sessions still count for progression. Calves and rear delts stay at full sets.</div>`:""}
 
   ${Object.keys(W.mus).length?`<div class="eyebrow">This week by muscle</div>
   <div class="card">
@@ -883,11 +898,18 @@ function vToday(){
 
   ${S.routines.length?`<div class="eyebrow">All routines</div>
   <div class="group">
-    ${S.routines.map(r=>`<div class="row-i" onclick="startWorkout('${r.id}')">
+    ${S.routines.map(r=>{
+      const full=r.items.reduce((n2,it)=>n2+it.sets.filter(x=>x.type==="normal").length,0);
+      const shortN=r.items.reduce((n2,it)=>{
+        const prot=SHORT_PROTECTED.indexOf(ex(it.exerciseId).primary)>=0;
+        const w=it.sets.filter(x=>x.type==="normal").length;
+        return n2+(prot?w:Math.min(w,SHORT_SETS));},0);
+      return `<div class="row-i" onclick="startWorkout('${r.id}')">
       <span class="tile" style="background:${mcol((ex(r.items[0]?.exerciseId)||{}).primary||"Other")}">${ICON.train}</span>
       <span class="t"><div>${esc(r.name)}</div>
-        <div class="sub">${r.items.length} exercises · ${r.items.reduce((n2,it)=>n2+it.sets.length,0)} sets</div></span>
-      <span class="chev">${ICON.chev}</span></div>`).join("")}
+        <div class="sub">${full} working sets \u00b7 ${shortN} if short</div></span>
+      <button class="btn sm" onclick="event.stopPropagation();startWorkout('${r.id}',true)">Short</button>
+      <span class="chev">${ICON.chev}</span></div>`;}).join("")}
     <button class="act" onclick="startWorkout(null)">Start an empty workout</button>
   </div>`
   :`<div class="empty"><div class="big-e">${ICON.routines}</div>No routines yet.</div>
@@ -1275,6 +1297,7 @@ function vHistory(){
 function showWorkout(id){
   const w=S.workouts.find(x=>x.id===id);if(!w)return;
   openSheet(`<div class="between"><h2>${esc(w.name)}</h2><span class="mute mono" style="font-size:var(--t-caption)">${w.date}</span></div>
+  ${w.short?`<div class="foot" style="padding-left:var(--inset)">Logged as a short session.</div>`:""}
   <div class="grid3" style="margin:12px 0">
     <div class="stat"><div class="k">Sets</div><div class="v">${workoutSets(w)}</div></div>
     <div class="stat"><div class="k">Volume</div><div class="v" style="font-size:var(--t-callout)">${Math.round(workoutVolume(w)).toLocaleString()}</div></div>
@@ -1711,7 +1734,7 @@ function vSettings(){
     <button class="act" onclick="importSheet()">Import Hevy workouts</button>
     <button class="act" onclick="measureSheet()">Import Hevy measurements</button>
   </div>
-  <div class="foot">${S.exercises.length} exercises · ${S.routines.length} routines · ${S.workouts.length} workouts${lb?` · backed up ${bdays===0?"today":bdays+" days ago"}`:""}<br>Ironlog Build 39</div>`;
+  <div class="foot">${S.exercises.length} exercises · ${S.routines.length} routines · ${S.workouts.length} workouts${lb?` · backed up ${bdays===0?"today":bdays+" days ago"}`:""}<br>Ironlog Build 40</div>`;
 }
 function logBody(){
   const v=parseFloat(document.getElementById("bw").value);
@@ -1743,33 +1766,58 @@ function backupJSON(){
   S.settings.lastBackup=todayISO(); save();
   toast("Backup saved to your downloads");
 }
+let _restoreData=null;
 function restoreSheet(){
+  _restoreData=null;
   openSheet(`<h2>Restore from a backup</h2>
-  <p class="mute" style="font-size:var(--t-foot)">Choose a backup file, or paste its contents. This replaces everything currently in the app, so take a fresh backup first if you have logged anything since.</p>
+  <p class="mute" style="font-size:var(--t-foot)">Pick your backup file. Everything currently in the app is replaced, so save a fresh backup first if you have logged anything since.</p>
   <label class="fl">Backup file</label>
-  <input type="file" accept=".json,application/json,text/plain" id="bfile" onchange="readBackupFile(this)">
-  <label class="fl">Or paste the contents</label>
-  <textarea id="bpaste" rows="5" placeholder='{"format":"ironlog-backup",...}'></textarea>
-  <button class="btn pri" style="width:calc(100% - var(--inset)*2);margin:var(--s4) var(--inset) 0" onclick="runRestore(document.getElementById('bpaste').value)">Restore</button>
-  <button class="btn" style="width:calc(100% - var(--inset)*2);margin:var(--s2) var(--inset) 0" onclick="closeSheet()">Cancel</button>`);
+  <input type="file" id="bfile" onchange="readBackupFile(this)">
+  <div id="bstatus" class="foot" style="padding-left:var(--inset);padding-right:var(--inset)"></div>
+  <div id="bactions"></div>
+  <details style="margin:var(--s5) var(--inset) 0">
+    <summary class="mute" style="font-size:var(--t-foot)">File picker not showing your backup?</summary>
+    <p class="mute" style="font-size:var(--t-foot);margin:var(--s2) 0">Open the JSON in Files, tap Share, copy the text, then paste it here.</p>
+    <textarea id="bpaste" rows="4" placeholder='{"format":"ironlog-backup",...}'></textarea>
+    <button class="btn" style="width:100%;margin-top:var(--s2)" onclick="loadBackupText(document.getElementById('bpaste').value,'pasted text')">Load pasted text</button>
+  </details>
+  <button class="btn" style="width:calc(100% - var(--inset)*2);margin:var(--s5) var(--inset) 0" onclick="closeSheet()">Cancel</button>`);
 }
 function readBackupFile(input){
-  const f=input.files&&input.files[0]; if(!f) return;
+  const f=input.files&&input.files[0];
+  if(!f){ setBStatus("No file selected."); return; }
+  setBStatus(`Reading ${f.name} (${Math.round(f.size/1024)} KB)\u2026`);
   const r=new FileReader();
-  r.onload=()=>{document.getElementById("bpaste").value=r.result;toast("File loaded \u2014 tap Restore");};
-  r.onerror=()=>toast("Couldn't read that file");
-  r.readAsText(f);
+  r.onload=()=>loadBackupText(String(r.result||""),f.name);
+  r.onerror=()=>setBStatus("Couldn't read that file. Try the paste option below.");
+  try{ r.readAsText(f); }catch(e){ setBStatus("Couldn't read that file: "+e.message); }
 }
-function runRestore(txt){
-  if(!txt||!txt.trim()){toast("Choose a file or paste the contents first");return;}
-  let pj; try{pj=JSON.parse(txt);}catch(e){toast("That isn't a valid backup file");return;}
+function setBStatus(html){ const el=document.getElementById("bstatus"); if(el) el.innerHTML=html; }
+function loadBackupText(txt,label){
+  const el=document.getElementById("bactions"); if(el) el.innerHTML="";
+  _restoreData=null;
+  if(!txt||!txt.trim()){ setBStatus("That file was empty."); return; }
+  let pj;
+  try{ pj=JSON.parse(txt.replace(/^\uFEFF/,"").trim()); }
+  catch(e){ setBStatus(`${esc(label)} isn't valid JSON \u2014 ${esc(e.message)}`); return; }
   const d=(pj&&pj.format==="ironlog-backup")?pj.data:pj;
-  if(!d||!Array.isArray(d.workouts)||!Array.isArray(d.exercises)){toast("That file isn't an Ironlog backup");return;}
-  const n=d.workouts.length,r=(d.routines||[]).length;
-  if(!confirm(`Restore ${n} workouts and ${r} routines? This replaces everything currently in the app.`))return;
+  if(!d||!Array.isArray(d.workouts)||!Array.isArray(d.exercises)){
+    setBStatus(`${esc(label)} doesn't look like an Ironlog backup.`); return; }
+  _restoreData=d;
+  const dates=d.workouts.map(w=>w.date).sort();
+  setBStatus(`<span style="color:var(--green)">${esc(label)} loaded.</span><br>
+    ${d.workouts.length} workouts${dates.length?` (${dates[0]} to ${dates[dates.length-1]})`:""},
+    ${(d.routines||[]).length} routines, ${d.exercises.length} exercises, ${(d.body||[]).length} weigh-ins.`);
+  if(el) el.innerHTML=`<button class="btn pri" style="width:calc(100% - var(--inset)*2);margin:var(--s4) var(--inset) 0" onclick="doRestore()">Replace everything with this</button>`;
+}
+function doRestore(){
+  const d=_restoreData;
+  if(!d){ setBStatus("Load a backup file first."); return; }
   S={exercises:d.exercises,routines:d.routines||[],workouts:d.workouts,body:d.body||[],
      settings:Object.assign({restSec:120,unit:"kg"},d.settings||{}),active:d.active||null};
   S.exercises.forEach(e=>{ if(e.rest==null) e.rest=defaultRest(e.name,e.primary||""); });
+  const n=S.workouts.length;
+  _restoreData=null;
   save(); applyTheme(); closeSheet(); go("history"); toast(`Restored ${n} workouts`);
 }
 function importSheet(){
