@@ -1734,7 +1734,7 @@ function vSettings(){
     <button class="act" onclick="importSheet()">Import Hevy workouts</button>
     <button class="act" onclick="measureSheet()">Import Hevy measurements</button>
   </div>
-  <div class="foot">${S.exercises.length} exercises · ${S.routines.length} routines · ${S.workouts.length} workouts${lb?` · backed up ${bdays===0?"today":bdays+" days ago"}`:""}<br>Ironlog Build 41</div>`;
+  <div class="foot">${S.exercises.length} exercises · ${S.routines.length} routines · ${S.workouts.length} workouts${lb?` · backed up ${bdays===0?"today":bdays+" days ago"}`:""}<br>Ironlog Build 43</div>`;
 }
 function logBody(){
   const v=parseFloat(document.getElementById("bw").value);
@@ -1983,11 +1983,11 @@ const PROGRAM=[
   ["Hammer Curl",3,12,8,75,2]]},
  {day:"Lower A",items:[
   ["Hack Squat",4,10,8,180,5],
-  ["Leg Extension",3,12,8,120,5],
-  ["Lying Leg Curl",3,12,8,120,5],
+  ["Leg Extension",4,12,8,120,5],
+  ["Lying Leg Curl",4,12,8,120,5],
   ["Calf Press",4,12,8,75,5],
-  ["Hanging Leg Raise",3,15,12,60,0],
-  ["Back Extension",3,15,12,60,2.5]]},
+  ["Hanging Leg Raise",4,15,12,60,0],
+  ["Back Extension",4,15,12,60,2.5]]},
  {day:"Upper B",items:[
   ["Incline Chest Press",4,8,6,180,5],
   ["T Bar Row",4,8,6,150,2.5],
@@ -1999,10 +1999,11 @@ const PROGRAM=[
   ["Cable Curl",2,12,9,60,2.5,1]]},
  {day:"Lower B",items:[
   ["Romanian Deadlift",4,10,8,180,5],
-  ["Bulgarian Split Squat",3,10,8,120,2],
-  ["Lying Leg Curl",3,12,8,120,5],
-  ["Calf Press",4,12,8,75,5],
-  ["Hanging Leg Raise",3,15,12,60,0]]}
+  ["Bulgarian Split Squat",4,10,8,120,2],
+  ["Leg Press",4,12,8,150,10],
+  ["Lying Leg Curl",4,12,8,120,5],
+  ["Seated Calf Raise",4,15,12,75,2.5],
+  ["Cable Crunch",4,15,12,60,2.5]]}
 ];
 const COOLDOWNS={
  "Upper A":[
