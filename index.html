@@ -1722,7 +1722,7 @@ function vSettings(){
   <div class="group">
     <div class="row-i" onclick="loadProgram()">
       <span class="tile" style="background:var(--accent);color:var(--on-accent)">${ICON.flame}</span>
-      <span class="t"><div>Load my PPL programme</div><div class="sub">Rebuilds the three routines and tunes every exercise</div></span>
+      <span class="t"><div>Load my U/L programme</div><div class="sub">Rebuilds the four routines and tunes every exercise</div></span>
       <span class="chev">${ICON.chev}</span></div>
   </div>
 
@@ -1734,7 +1734,7 @@ function vSettings(){
     <button class="act" onclick="importSheet()">Import Hevy workouts</button>
     <button class="act" onclick="measureSheet()">Import Hevy measurements</button>
   </div>
-  <div class="foot">${S.exercises.length} exercises · ${S.routines.length} routines · ${S.workouts.length} workouts${lb?` · backed up ${bdays===0?"today":bdays+" days ago"}`:""}<br>Ironlog Build 40</div>`;
+  <div class="foot">${S.exercises.length} exercises · ${S.routines.length} routines · ${S.workouts.length} workouts${lb?` · backed up ${bdays===0?"today":bdays+" days ago"}`:""}<br>Ironlog Build 41</div>`;
 }
 function logBody(){
   const v=parseFloat(document.getElementById("bw").value);
@@ -1972,53 +1972,69 @@ function runImport(){
 
 /* ---- programme: name | sets | topReps | lowReps | restSec | incKg | dropSets ---- */
 const PROGRAM=[
- {day:"Push",items:[
-  ["Incline Bench Press",4,12,8,120,2],
-  ["Incline Chest Press",4,8,6,150,5],
-  ["Chest Dip",4,12,8,120,2.5],
-  ["Shoulder Press",4,12,8,120,2],
-  ["Lateral Raise",4,15,12,60,2],
-  ["Triceps Pushdown",3,12,8,75,2.5,1]]},
- {day:"Pull",items:[
-  ["T Bar Row",4,8,6,150,2.5],
-  ["Lat Pulldown",4,10,8,120,5],
-  ["Seated Cable Row",4,12,8,120,5],
-  ["Face Pull",4,15,12,60,2.5],
-  ["Rear Delt Reverse Fly",4,15,12,60,5],
-  ["Hammer Curl",4,12,8,75,2],
-  ["Bicep Curl",2,12,8,60,2.5,1]]},
- {day:"Legs + Chest",items:[
+ {day:"Upper A",items:[
+  ["Incline Bench Press",4,12,8,150,2],
+  ["Lat Pulldown",4,10,8,150,5],
+  ["Chest Dip",3,12,8,120,2.5],
+  ["Seated Cable Row",3,12,8,120,5],
+  ["Lateral Raise",3,15,12,60,2],
+  ["Face Pull",3,15,12,60,2.5],
+  ["Triceps Pushdown",3,12,8,75,2.5,1],
+  ["Hammer Curl",3,12,8,75,2]]},
+ {day:"Lower A",items:[
   ["Hack Squat",4,10,8,180,5],
-  ["Romanian Deadlift",4,10,8,150,5],
-  ["Lying Leg Curl",4,12,8,120,5],
-  ["Leg Extension",4,12,8,120,5],
+  ["Leg Extension",3,12,8,120,5],
+  ["Lying Leg Curl",3,12,8,120,5],
   ["Calf Press",4,12,8,75,5],
-  ["Incline Chest Fly",4,12,8,75,2],
-  ["Hanging Leg Raise",4,15,12,60,0]]}
+  ["Hanging Leg Raise",3,15,12,60,0],
+  ["Back Extension",3,15,12,60,2.5]]},
+ {day:"Upper B",items:[
+  ["Incline Chest Press",4,8,6,180,5],
+  ["T Bar Row",4,8,6,150,2.5],
+  ["Shoulder Press",4,12,8,120,2],
+  ["Incline Chest Fly",3,12,8,75,2],
+  ["Dumbbell Shrug",3,15,12,75,2.5],
+  ["Rear Delt Reverse Fly",3,15,12,60,5],
+  ["Lateral Raise",3,15,12,60,2],
+  ["Cable Curl",2,12,9,60,2.5,1]]},
+ {day:"Lower B",items:[
+  ["Romanian Deadlift",4,10,8,180,5],
+  ["Bulgarian Split Squat",3,10,8,120,2],
+  ["Lying Leg Curl",3,12,8,120,5],
+  ["Calf Press",4,12,8,75,5],
+  ["Hanging Leg Raise",3,15,12,60,0]]}
 ];
 const COOLDOWNS={
- "Push":[
+ "Upper A":[
   ["Doorway Pec Stretch",60,"Forearm on the frame at shoulder height, step through. Chest open, no shrug."],
-  ["Overhead Triceps Stretch",60,"30s each arm. Elbow high, gently pull with the other hand."],
-  ["Cross-Body Shoulder Stretch",60,"30s each. Pull the arm across at chest height, keep the shoulder down."],
-  ["Thoracic Extension over Bench",60,"Elbows on a bench, sink the chest. Opens what pressing tightens."],
-  ["Behind-the-Back Shoulder Stretch",60,"Hands clasped behind you, lift and open across the front delts."]],
- "Pull":[
-  ["Kneeling Lat Stretch",60,"30s each. Hands on a bench, sink the hips back, reach long through one side."],
+  ["Kneeling Lat Stretch",60,"30s each. Hands on a bench, sink the hips back, reach long."],
+  ["Overhead Triceps Stretch",60,"30s each arm. Elbow high, gentle pull."],
+  ["Cross-Body Shoulder Stretch",60,"30s each. Keep the shoulder down."],
+  ["Forearm Flexor Stretch",60,"30s each. Arm straight, fingers back."]],
+ "Upper B":[
+  ["Doorway Pec Stretch",60,"Forearm on the frame, step through. Deeper after incline pressing."],
+  ["Thoracic Extension over Bench",60,"Elbows on a bench, sink the chest."],
+  ["Upper Trap Stretch",60,"30s each. Ear to shoulder, opposite hand behind your back."],
   ["Wall Biceps Stretch",60,"30s each. Palm flat on the wall behind you, rotate away."],
-  ["Cross-Body Rear Delt Stretch",60,"30s each. Same position as the push version, focus on the back of the shoulder."],
-  ["Forearm Flexor Stretch",60,"30s each. Arm straight, fingers back, gentle pressure. Grip takes a beating on rows."],
-  ["Seated Thoracic Rotation",60,"30s each. Sit tall, rotate and hold, breathe into the stretch."]],
- "Legs + Chest":[
-  ["Couch Stretch",60,"30s each. Rear foot elevated, squeeze the glute. Hip flexors after hack squats."],
-  ["Seated Hamstring Stretch",60,"30s each. Hinge from the hip, flat back \u2014 don't round to reach further."],
-  ["Standing Quad Stretch",60,"30s each. Knee down and back, hips forward, don't arch the lower back."],
-  ["Figure-4 Glute Stretch",60,"30s each. Ankle over the opposite knee, sit back into it."],
-  ["Wall Calf Stretch",60,"30s each. Back leg straight, heel down, lean into the wall."]]
+  ["Seated Thoracic Rotation",60,"30s each. Sit tall, rotate and hold."]],
+ "Lower A":[
+  ["Couch Stretch",60,"30s each. Rear foot elevated, squeeze the glute."],
+  ["Standing Quad Stretch",60,"30s each. Knee down and back, don't arch."],
+  ["Wall Calf Stretch",60,"30s each. Back leg straight, heel down."],
+  ["Figure-4 Glute Stretch",60,"30s each. Ankle over the opposite knee, sit back."],
+  ["Seated Hamstring Stretch",60,"30s each. Hinge from the hip, flat back."]],
+ "Lower B":[
+  ["Seated Hamstring Stretch",60,"30s each. Flat back \u2014 don't round to reach further."],
+  ["Couch Stretch",60,"30s each. Hip flexors after split squats."],
+  ["Wall Calf Stretch",60,"30s each. Back leg straight, heel down."],
+  ["Figure-4 Glute Stretch",60,"30s each. Ankle over the opposite knee."],
+  ["Child's Pose",60,"Sink the hips back, breathe into the lower back."]]
 };
 function loadProgram(){
-  if(!confirm("Add the three PPL routines and set rest, increments and rep ranges on every exercise?")) return;
+  if(!confirm("Replace your routines with the four U/L days and set rest, increments and rep ranges on every exercise?")) return;
   let made=0;
+  const keep=PROGRAM.map(d=>d.day);
+  S.routines=S.routines.filter(r=>keep.indexOf(r.name)>=0);
   PROGRAM.forEach(d=>{
     const items=d.items.map(([name,sets,top,low,rest,inc,drops])=>{
       const e=matchExercise(name);
