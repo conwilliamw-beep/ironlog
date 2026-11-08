@@ -1,3 +1,4 @@
+<meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -744,10 +745,11 @@ function finishWorkout(){
   S.workouts.push(a); S.active=null; save();
   toast(prs.length?`Workout saved · ${[...new Set(prs)].length} PR`:"Workout saved");
   go("history");
+  if(S.settings.healthWorkouts) setTimeout(()=>sendWorkoutToHealth(a),700);
 }
 
 /* ---------- rest timer ---------- */
-let restEnd=0,restInt=null,audioCtx=null,wakeLock=null,restWarned=false;
+let restEnd=0,restInt=null,audioCtx=null,wakeLock=null,restWarned=false,pushCancelled=true;
 function unlockAudio(){
   try{
     if(!audioCtx){ const AC=window.AudioContext||window.webkitAudioContext; if(AC) audioCtx=new AC(); }
@@ -792,14 +794,16 @@ document.addEventListener("visibilitychange",()=>{
 function startRest(sec,label){
   sec=(sec==null?S.settings.restSec:sec)||0; if(!sec) return;
   document.getElementById("restlabel").textContent=label?("Rest \u00b7 "+label):"Rest";
-  restEnd=Date.now()+sec*1000; restWarned=false;
+  restEnd=Date.now()+sec*1000; restWarned=false; pushCancelled=false;
   document.getElementById("rest").style.display="block";
+  pushSchedule(restEnd,label);
   keepAwake(true);
   clearInterval(restInt);
   restInt=setInterval(()=>{
     const left=Math.max(0,Math.round((restEnd-Date.now())/1000));
     document.getElementById("resttime").textContent=Math.floor(left/60)+":"+String(left%60).padStart(2,"0");
     if(left<=10&&left>0&&!restWarned){ restWarned=true; beep(1); buzz(60); }
+    if(left<=2&&!pushCancelled&&document.visibilityState==="visible"){ pushCancelled=true; pushCancel(); }
     if(left<=0){ skipRest(); beep(3); buzz([160,90,160,90,260]); toast("Rest done \u2014 next set"); }
   },250);
 }
@@ -807,14 +811,95 @@ function adjustRest(delta){
   if(!restEnd) return;
   restEnd=Math.max(Date.now()+1000, restEnd+delta*1000);
   if(delta>0) restWarned=false;
+  pushCancelled=false; pushSchedule(restEnd);
   const left=Math.max(0,Math.round((restEnd-Date.now())/1000));
   document.getElementById("resttime").textContent=Math.floor(left/60)+":"+String(left%60).padStart(2,"0");
   buzz(25);
 }
 function skipRest(){
+  if(restEnd&&!pushCancelled){ pushCancelled=true; pushCancel(); }
   clearInterval(restInt); restEnd=0;
   const el=document.getElementById("rest"); if(el) el.style.display="none";
   keepAwake(false);
+}
+
+/* ---------- lock-screen rest alerts (web push via Cloudflare Worker) ---------- */
+const isStandalone=()=>window.matchMedia("(display-mode: standalone)").matches||navigator.standalone===true;
+const pushOn=()=>!!(S.settings.push&&S.settings.pushUrl&&S.settings.pushSub);
+const pushBase=()=>String(S.settings.pushUrl||"").trim().replace(/\/+$/,"");
+let restLabel="";
+function b64uToBytes(s){s=s.replace(/-/g,"+").replace(/_/g,"/");s+="=".repeat((4-s.length%4)%4);
+  const b=atob(s),o=new Uint8Array(b.length);for(let i=0;i<b.length;i++)o[i]=b.charCodeAt(i);return o;}
+async function saveRestLabel(label){
+  try{ const c=await caches.open("ironlog-meta");
+    await c.put(new URL("__rest-label",location.href).href,new Response(JSON.stringify({label:label||""}),{headers:{"Content-Type":"application/json"}})); }catch(e){}
+}
+function pushPost(path,extra){
+  return fetch(pushBase()+path,{method:"POST",keepalive:true,headers:{"Content-Type":"application/json"},
+    body:JSON.stringify(Object.assign({sub:S.settings.pushSub},extra||{}))});
+}
+function pushSchedule(at,label){
+  if(!pushOn()) return;
+  if(label!=null){ restLabel=label; saveRestLabel(label); }
+  pushPost("/schedule",{at}).catch(()=>{});
+}
+function pushCancel(){ if(pushOn()) pushPost("/cancel").catch(()=>{}); }
+async function enablePush(){
+  const url=(document.getElementById("pushurl")||{}).value;
+  if(url!=null) S.settings.pushUrl=url.trim();
+  if(!pushBase()){ toast("Paste your Worker address first"); return; }
+  if(!isStandalone()){ toast("Open Ironlog from your Home Screen, not Safari"); return; }
+  if(!("serviceWorker" in navigator)||!("PushManager" in window)||!("Notification" in window)){
+    toast("This iOS version can't do web push (needs 16.4+)"); return; }
+  try{
+    const perm=await Notification.requestPermission();
+    if(perm!=="granted"){ toast("Notifications were not allowed — turn them on in Settings → Notifications → Ironlog"); return; }
+    const key=(await (await fetch(pushBase()+"/vapid")).json()).publicKey;
+    if(!key) throw new Error("no key");
+    const reg=await navigator.serviceWorker.ready;
+    let sub=await reg.pushManager.getSubscription();
+    if(sub){ const cur=sub.options&&sub.options.applicationServerKey;
+      const curB=cur?new Uint8Array(cur):null, want=b64uToBytes(key);
+      if(!curB||curB.length!==want.length||curB.some((v,i)=>v!==want[i])){ await sub.unsubscribe(); sub=null; } }
+    if(!sub) sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:b64uToBytes(key)});
+    S.settings.pushSub=sub.toJSON(); S.settings.push=true; save(); render();
+    await saveRestLabel("test");
+    const r=await pushPost("/test");
+    if(!r.ok) throw new Error("worker "+r.status);
+    toast("Lock your phone now — a test alert arrives in 3 seconds");
+  }catch(e){ console.warn(e); toast("Couldn't connect: "+(e.message||e)); }
+}
+async function disablePush(){
+  pushCancel();
+  try{ const reg=await navigator.serviceWorker.ready; const sub=await reg.pushManager.getSubscription(); if(sub) await sub.unsubscribe(); }catch(e){}
+  S.settings.push=false; S.settings.pushSub=null; save(); render(); toast("Lock-screen alerts off");
+}
+
+/* ---------- Apple Health (via an iOS Shortcut) ---------- */
+const HEALTH_SC_DEFAULT="Ironlog to Health";
+const pad2=n=>String(n).padStart(2,"0");
+const fmtLocal=ms=>{const d=new Date(ms);return d.getFullYear()+"-"+pad2(d.getMonth()+1)+"-"+pad2(d.getDate())+" "+pad2(d.getHours())+":"+pad2(d.getMinutes());};
+function runHealthShortcut(payload){
+  const name=(S.settings.healthShortcut||HEALTH_SC_DEFAULT).trim();
+  location.href="shortcuts://run-shortcut?name="+encodeURIComponent(name)+"&input=text&text="+encodeURIComponent(JSON.stringify(payload));
+}
+function latestKg(){ const b=(S.body||[]).slice().sort((a,c)=>a.date.localeCompare(c.date)); return b.length?b[b.length-1].kg:80; }
+function healthWorkoutPayload(w){
+  const start=w.start||w.ts||Date.now();
+  const mins=Math.max(1,Math.round((w.durationSec||((Date.now()-start)/1000))/60));
+  // Strength training ~5 MET; active energy excludes resting burn, so (MET-1).
+  const kcal=Math.round(4*latestKg()*mins/60);
+  return {kind:"workout",name:w.name||"Workout",start:fmtLocal(start),minutes:mins,kcal};
+}
+function sendWorkoutToHealth(w){
+  if(!w){ const ws=S.workouts.slice().sort((a,b)=>(b.ts||0)-(a.ts||0)); w=ws[0]; }
+  if(!w){ toast("No workouts yet"); return; }
+  w.healthSent=Date.now(); save();
+  runHealthShortcut(healthWorkoutPayload(w));
+}
+function sendWeightToHealth(kg){
+  if(kg==null) kg=latestKg();
+  runHealthShortcut({kind:"weight",kg,date:fmtLocal(Date.now())});
 }
 /* ---------- views ---------- */
 const TITLES={today:"Train",routines:"Routines",history:"History",progress:"Progress",settings:"You"};
@@ -1716,7 +1801,32 @@ function vSettings(){
         <option value="kg" ${S.settings.unit==="kg"?"selected":""}>Kilograms</option>
         <option value="lb" ${S.settings.unit==="lb"?"selected":""}>Pounds</option></select></div>
   </div>
-  <div class="foot">Alerts fire at 10 seconds and at zero, only while Ironlog is on screen. iOS suspends web apps in the background, so the timer cannot wake a locked phone.</div>
+  <div class="foot">In-app alerts fire at 10 seconds and at zero while Ironlog is on screen.</div>
+
+  <div class="eyebrow">Lock-screen rest alerts</div>
+  <div class="group">
+    <div class="row-i"><span class="tile" style="background:var(--red,#ff3b30)">${ICON.timer}</span>
+      <span class="t"><div>Alert when rest ends</div><div class="sub">${pushOn()?"On — works with the phone locked":"Off"}</div></span>
+      ${pushOn()?`<button class="btn sm" onclick="disablePush()">Turn off</button>`:`<button class="btn sm pri" onclick="enablePush()">Turn on</button>`}</div>
+    <div class="row-i"><span class="t">Worker address</span>
+      <input id="pushurl" placeholder="https://ironlog-push….workers.dev" value="${esc(S.settings.pushUrl||"")}" onchange="S.settings.pushUrl=this.value.trim();save()" autocapitalize="off" autocorrect="off" spellcheck="false" style="flex:1;min-width:0;text-align:right;background:none;padding:0;min-height:0;color:var(--label-2)"></div>
+    ${pushOn()?`<button class="act" onclick="saveRestLabel('test');pushPost('/test').then(()=>toast('Lock your phone — test in 3 s')).catch(()=>toast('Worker unreachable'))">Send a test alert</button>`:""}
+  </div>
+  <div class="foot">Uses your free Cloudflare Worker. Needs iOS 16.4+ and Ironlog opened from the Home Screen.</div>
+
+  <div class="eyebrow">Apple Health</div>
+  <div class="group">
+    <div class="row-i"><span class="tile" style="background:#ff2d55">${ICON.flame}</span>
+      <span class="t"><div>Send workouts</div><div class="sub">After you tap Finish</div></span>
+      <button class="btn sm ${S.settings.healthWorkouts?"pri":""}" onclick="S.settings.healthWorkouts=!S.settings.healthWorkouts;save();render()">${S.settings.healthWorkouts?"On":"Off"}</button></div>
+    <div class="row-i"><span class="t"><div>Send bodyweight</div><div class="sub">When you log a weigh-in</div></span>
+      <button class="btn sm ${S.settings.healthWeight?"pri":""}" onclick="S.settings.healthWeight=!S.settings.healthWeight;save();render()">${S.settings.healthWeight?"On":"Off"}</button></div>
+    <div class="row-i"><span class="t">Shortcut name</span>
+      <input value="${esc(S.settings.healthShortcut||HEALTH_SC_DEFAULT)}" onchange="S.settings.healthShortcut=this.value.trim()||HEALTH_SC_DEFAULT;save()" style="flex:1;min-width:0;text-align:right;background:none;padding:0;min-height:0;color:var(--label-2)"></div>
+    <button class="act" onclick="sendWorkoutToHealth()">Send last workout now</button>
+    <button class="act" onclick="sendWeightToHealth()">Send latest bodyweight now</button>
+  </div>
+  <div class="foot">Hands the data to the “${esc(S.settings.healthShortcut||HEALTH_SC_DEFAULT)}” shortcut, which writes it to Health. Swipe back to Ironlog when it finishes.</div>
 
   <div class="eyebrow">Programme</div>
   <div class="group">
@@ -1734,13 +1844,15 @@ function vSettings(){
     <button class="act" onclick="importSheet()">Import Hevy workouts</button>
     <button class="act" onclick="measureSheet()">Import Hevy measurements</button>
   </div>
-  <div class="foot">${S.exercises.length} exercises · ${S.routines.length} routines · ${S.workouts.length} workouts${lb?` · backed up ${bdays===0?"today":bdays+" days ago"}`:""}<br>Ironlog Build 43</div>`;
+  <div class="foot">${S.exercises.length} exercises · ${S.routines.length} routines · ${S.workouts.length} workouts${lb?` · backed up ${bdays===0?"today":bdays+" days ago"}`:""}<br>Ironlog Build 44</div>`;
 }
 function logBody(){
   const v=parseFloat(document.getElementById("bw").value);
   if(isNaN(v)){toast("Enter a number in kilograms");return;}
   S.body=S.body.filter(x=>x.date!==todayISO());
-  S.body.push({date:todayISO(),kg:Math.round(v*10)/10});save();render();toast("Bodyweight logged");
+  const kg=Math.round(v*10)/10;
+  S.body.push({date:todayISO(),kg});save();render();toast("Bodyweight logged");
+  if(S.settings.healthWeight) setTimeout(()=>sendWeightToHealth(kg),500);
 }
 function exportCSV(){
   const rows=[["date","workout","exercise","set_index","set_type","weight_kg","reps","est_1rm_kg","exercise_note","permanent_note","workout_note","duration_min"]];
