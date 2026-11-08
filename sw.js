@@ -1,5 +1,5 @@
 /* Ironlog service worker — network-first so updates land, cache fallback so the gym works offline. */
-const CACHE = "ironlog-shell-v44";
+const CACHE = "ironlog-shell-v45";
 const META = "ironlog-meta"; // holds the rest label the page saves for push alerts
 const SHELL = ["./", "./index.html", "./manifest.webmanifest", "./icon-192.png", "./icon-512.png"];
 
