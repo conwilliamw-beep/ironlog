@@ -1,0 +1,20 @@
+name = "ironlog-push"
+main = "worker.js"
+compatibility_date = "2025-06-01"
+
+[vars]
+ALLOWED_ORIGIN = "https://conwilliamw-beep.github.io"
+VAPID_SUBJECT = "https://conwilliamw-beep.github.io/ironlog/"
+
+[[durable_objects.bindings]]
+name = "TIMER"
+class_name = "RestTimer"
+
+[[durable_objects.bindings]]
+name = "KEYS"
+class_name = "VapidKeys"
+
+# SQLite-backed Durable Objects are included on the Workers Free plan.
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["RestTimer", "VapidKeys"]
