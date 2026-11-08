@@ -1,0 +1,16 @@
+name: Deploy push worker
+on:
+  push:
+    branches: [main]
+    paths: ["push/**", ".github/workflows/deploy-push.yml"]
+  workflow_dispatch:
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: 6dd8daee9d42a1394ca20598f4058fe7
+          workingDirectory: push
